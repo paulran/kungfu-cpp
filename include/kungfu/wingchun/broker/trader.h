@@ -27,7 +27,15 @@ class TraderVendor : public BrokerVendor {
 public:
     using BrokerVendor::BrokerVendor;
     void react() override;
+    void on_start() override;
+    void on_active() override;
+    void on_channel(uint32_t source_uid, uint32_t dest_uid) override;
     Trader* td_service() { return static_cast<Trader*>(service_.get()); }
+
+    using apprentice::get_writer;
+    using apprentice::register_location;
+    using apprentice::request_read_from;
+    using apprentice::request_write_to;
 };
 
 } // namespace kungfu::wingchun::broker

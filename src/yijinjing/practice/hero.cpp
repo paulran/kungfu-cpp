@@ -18,6 +18,7 @@ void hero::run() {
 
     events_ = observable;
 
+    on_start();
     react();
 
     observable.connect();
@@ -31,15 +32,6 @@ void hero::stop() {
 
 void hero::produce(rxcpp::subscriber<event_ptr>& subscriber) {
     while (running_) {
-        // Drain nng control messages
-        if (pull_socket_) {
-            std::string msg;
-            while (pull_socket_->recv(msg, 0)) {
-                // For Phase 1: nng messages are notification-only
-                // Full JSON message parsing would go here in Phase 2
-            }
-        }
-
         // Drain journal frames
         while (reader_.data_available()) {
             auto frame = reader_.current_frame();

@@ -4,3 +4,5 @@ build/
 *.user
 CMakeSettings.json
 out/
+
+home/

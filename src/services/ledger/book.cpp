@@ -42,28 +42,25 @@ void BookKeeper::on_trade(const longfist::types::Trade& trade, uint32_t book_uid
     auto& book = get_book(book_uid);
     std::string key = make_position_key(trade.instrument_id.data, trade.exchange_id.data);
 
-    // Determine which position map to use based on side/direction
-    auto& positions = (trade.side == longfist::enums::Side::Buy)
-                          ? book.long_positions
-                          : book.short_positions;
-
-    auto it = positions.find(key);
-    if (it == positions.end()) {
-        // Create new position
-        longfist::types::Position pos{};
-        pos.instrument_id = trade.instrument_id;
-        pos.exchange_id = trade.exchange_id;
-        pos.direction = (trade.side == longfist::enums::Side::Buy)
-                            ? longfist::enums::Direction::Long
-                            : longfist::enums::Direction::Short;
-        positions[key] = pos;
-        it = positions.find(key);
-    }
-
-    auto& pos = it->second;
-
     if (trade.offset == longfist::enums::Offset::Open) {
         // Opening position
+        auto& positions = (trade.side == longfist::enums::Side::Buy)
+                              ? book.long_positions
+                              : book.short_positions;
+
+        auto it = positions.find(key);
+        if (it == positions.end()) {
+            longfist::types::Position pos{};
+            pos.instrument_id = trade.instrument_id;
+            pos.exchange_id = trade.exchange_id;
+            pos.direction = (trade.side == longfist::enums::Side::Buy)
+                                ? longfist::enums::Direction::Long
+                                : longfist::enums::Direction::Short;
+            positions[key] = pos;
+            it = positions.find(key);
+        }
+
+        auto& pos = it->second;
         double cost = trade.price * static_cast<double>(trade.volume);
         double total_cost = pos.avg_open_price * static_cast<double>(pos.volume) + cost;
         pos.volume += trade.volume;
@@ -71,16 +68,9 @@ void BookKeeper::on_trade(const longfist::types::Trade& trade, uint32_t book_uid
             pos.avg_open_price = total_cost / static_cast<double>(pos.volume);
         }
         pos.position_cost = pos.avg_open_price * static_cast<double>(pos.volume);
-
-        // Update asset: freeze cash for buy
-        if (trade.side == longfist::enums::Side::Buy) {
-            book.asset.available -= cost;
-        } else {
-            book.asset.available -= cost; // for short opening, margin deducted
-        }
+        book.asset.available -= cost;
     } else {
         // Closing position (Close, CloseToday, CloseYesterday)
-        // For close, we reduce volume from the opposite side
         auto& close_positions = (trade.side == longfist::enums::Side::Sell)
                                     ? book.long_positions
                                     : book.short_positions;
@@ -91,11 +81,9 @@ void BookKeeper::on_trade(const longfist::types::Trade& trade, uint32_t book_uid
             double pnl = 0.0;
 
             if (trade.side == longfist::enums::Side::Sell) {
-                // Selling to close long
                 pnl = (trade.price - close_pos.avg_open_price) * static_cast<double>(trade.volume);
                 book.asset.available += trade.price * static_cast<double>(trade.volume);
             } else {
-                // Buying to close short
                 pnl = (close_pos.avg_open_price - trade.price) * static_cast<double>(trade.volume);
                 book.asset.available += close_pos.avg_open_price * static_cast<double>(trade.volume);
             }

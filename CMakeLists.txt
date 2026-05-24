@@ -56,6 +56,9 @@ target_include_directories(tomlplusplus INTERFACE ${CMAKE_SOURCE_DIR}/3rdparty/t
 # === Project libraries ===
 add_subdirectory(src)
 
+# === Examples ===
+add_subdirectory(examples)
+
 # === Tests ===
 if(BUILD_TESTS)
     enable_testing()

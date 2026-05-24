@@ -20,10 +20,8 @@ add_executable(kf_tests_phase2
     test_config.cpp
     test_store.cpp
     test_ledger.cpp
-    test_supervisor.cpp
     ${PROJECT_SOURCE_DIR}/src/services/cached/store.cpp
     ${PROJECT_SOURCE_DIR}/src/services/ledger/book.cpp
-    ${PROJECT_SOURCE_DIR}/src/services/master/supervisor.cpp
 )
 target_include_directories(kf_tests_phase2 PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(kf_tests_phase2 PRIVATE

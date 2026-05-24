@@ -128,7 +128,8 @@ TEST(E2ETrading, SimMdToStrategyToSimTd) {
     ASSERT_TRUE(pos.has_value());
     EXPECT_EQ(pos->volume, 2);
 
-    std::filesystem::remove_all(test_dir);
+    std::error_code ec;
+    std::filesystem::remove_all(test_dir, ec);
 }
 
 TEST(E2ETrading, QuoteUpdatesPnL) {
@@ -170,7 +171,8 @@ TEST(E2ETrading, QuoteUpdatesPnL) {
     // Unrealized PnL = (4510 - 4500) * 2 * multiplier(1) = 20
     EXPECT_NEAR(pos->unrealized_pnl, 20.0, 0.01);
 
-    std::filesystem::remove_all(test_dir);
+    std::error_code ec2;
+    std::filesystem::remove_all(test_dir, ec2);
 }
 
 TEST(E2ETrading, SimTdPartialFillFlow) {

@@ -1,7 +1,6 @@
 #include <kungfu/service/master.h>
 #include <kungfu/common/config.h>
 #include <spdlog/spdlog.h>
-#include <memory>
 #include <string>
 
 int main(int argc, char** argv) {
@@ -15,11 +14,6 @@ int main(int argc, char** argv) {
 
         kungfu::yijinjing::io::Locator locator(cfg.system.home);
         kungfu::service::Master master(locator, cfg.system.low_latency);
-
-        if (!cfg.services.empty()) {
-            master.set_supervisor(
-                std::make_unique<kungfu::service::Supervisor>(cfg.services));
-        }
 
         master.run();
     } catch (const std::exception& e) {

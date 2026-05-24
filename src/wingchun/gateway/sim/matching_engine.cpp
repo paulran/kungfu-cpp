@@ -62,6 +62,8 @@ bool MatchingEngine::try_match(PendingOrder& order, const longfist::types::Quote
         f.price = fill_price;
         f.volume = fill_vol;
         f.trade_time = now;
+        f.side = order.input.side;
+        f.offset = order.input.offset;
         fills.push_back(f);
 
         order.volume_left -= fill_vol;
@@ -84,6 +86,8 @@ bool MatchingEngine::try_match(PendingOrder& order, const longfist::types::Quote
         f.price = quote.ask_price_0;
         f.volume = fill_vol;
         f.trade_time = now;
+        f.side = order.input.side;
+        f.offset = order.input.offset;
         fills.push_back(f);
 
         order.volume_left -= fill_vol;
@@ -101,6 +105,8 @@ bool MatchingEngine::try_match(PendingOrder& order, const longfist::types::Quote
         f.price = quote.bid_price_0;
         f.volume = fill_vol;
         f.trade_time = now;
+        f.side = order.input.side;
+        f.offset = order.input.offset;
         fills.push_back(f);
 
         order.volume_left -= fill_vol;

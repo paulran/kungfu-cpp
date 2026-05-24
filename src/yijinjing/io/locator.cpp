@@ -27,9 +27,19 @@ std::string Locator::journal_path(const location_ptr& loc, uint32_t dest_uid, ui
 }
 
 std::string Locator::nn_path(const location_ptr& loc, const std::string& protocol) const {
+#ifdef _WIN32
+    // NNG IPC on Windows uses named pipes; build a flat pipe name from location components
+    std::string pipe_name = "ipc:///kungfu/" +
+        std::string(category_name(loc->cat)) + "/" +
+        loc->group + "/" + loc->name + "/" +
+        std::string(mode_name(loc->m)) + "/" + protocol;
+    return pipe_name;
+#else
     fs::path dir = fs::path(layout_dir(loc, layout::NN));
+    fs::create_directories(dir);
     fs::path path = dir / (protocol + ".ipc");
-    return path.string();
+    return "ipc://" + path.string();
+#endif
 }
 
 std::vector<uint32_t> Locator::list_page_ids(const location_ptr& loc, uint32_t dest_uid) const {

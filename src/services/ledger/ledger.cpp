@@ -9,6 +9,7 @@ Ledger::Ledger(const yijinjing::io::location_ptr& home, yijinjing::io::Locator& 
 }
 
 void Ledger::on_start() {
+    apprentice::on_start();
     spdlog::info("Ledger: service started, uid={}", home_uid());
 }
 

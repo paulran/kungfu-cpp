@@ -26,7 +26,15 @@ void RuntimeContext::subscribe(const std::string& exchange_id,
         spdlog::warn("RuntimeContext: no MD source registered, cannot subscribe");
         return;
     }
-    broker_client_.subscribe(md_uid, instrument_id, exchange_id, type);
+
+    longfist::types::Subscribe sub{};
+    sub.instrument_id = longfist::instrument_id_t(instrument_id.c_str());
+    sub.exchange_id = longfist::exchange_id_t(exchange_id.c_str());
+    sub.instrument_type = type;
+
+    auto writer = runner_.get_writer(runner_.home(), md_uid);
+    writer->write(0, sub);
+    spdlog::info("RuntimeContext: subscribe {} @ {} (wrote to journal)", instrument_id, exchange_id);
 }
 
 uint64_t RuntimeContext::insert_order(const std::string& instrument_id,
@@ -40,26 +48,57 @@ uint64_t RuntimeContext::insert_order(const std::string& instrument_id,
         spdlog::warn("RuntimeContext: no TD source registered, cannot insert order");
         return 0;
     }
-    return broker_client_.insert_order(td_uid, instrument_id, exchange_id,
-                                       price, volume, side, offset, price_type);
+
+    uint64_t order_id = next_order_id_++;
+
+    longfist::types::OrderInput input{};
+    input.order_id = order_id;
+    input.instrument_id = longfist::instrument_id_t(instrument_id.c_str());
+    input.exchange_id = longfist::exchange_id_t(exchange_id.c_str());
+    input.limit_price = price;
+    input.volume = volume;
+    input.side = side;
+    input.offset = offset;
+    input.price_type = price_type;
+
+    auto writer = runner_.get_writer(runner_.home(), td_uid);
+    writer->write(0, input);
+    spdlog::info("RuntimeContext: insert_order id={} {} @ {} price={:.2f} vol={}",
+                 order_id, instrument_id, exchange_id, price, volume);
+    return order_id;
 }
 
 void RuntimeContext::cancel_order(uint64_t order_id) {
     uint32_t td_uid = broker_client_.default_td_uid();
     if (td_uid == 0) return;
-    broker_client_.cancel_order(td_uid, order_id);
+
+    longfist::types::OrderAction action{};
+    action.order_id = order_id;
+    action.action = longfist::enums::HistoryOrderAction::Cancel;
+
+    auto writer = runner_.get_writer(runner_.home(), td_uid);
+    writer->write(0, action);
+    spdlog::info("RuntimeContext: cancel_order id={}", order_id);
 }
 
 void RuntimeContext::add_account(const std::string& group, const std::string& name) {
-    auto loc = yijinjing::io::location::make(yijinjing::io::category::TD, group, name, yijinjing::io::mode::LIVE);
-    broker_client_.add_td(loc->uid);
-    spdlog::info("RuntimeContext: added account td/{}/{} uid={}", group, name, loc->uid);
+    auto td_loc = yijinjing::io::location::make(yijinjing::io::category::TD, group, name, yijinjing::io::mode::LIVE);
+    runner_.register_location(td_loc);
+    broker_client_.add_td(td_loc->uid);
+
+    runner_.request_write_to(td_loc->uid);
+    runner_.request_read_from(td_loc, 0);
+    spdlog::info("RuntimeContext: add_account td/{}/{} uid={}", group, name, td_loc->uid);
 }
 
 void RuntimeContext::add_md(const std::string& group, const std::string& name) {
-    auto loc = yijinjing::io::location::make(yijinjing::io::category::MD, group, name, yijinjing::io::mode::LIVE);
-    broker_client_.add_md(loc->uid);
-    spdlog::info("RuntimeContext: added md/{}/{} uid={}", group, name, loc->uid);
+    auto md_loc = yijinjing::io::location::make(yijinjing::io::category::MD, group, name, yijinjing::io::mode::LIVE);
+    runner_.register_location(md_loc);
+    broker_client_.add_md(md_loc->uid);
+
+    runner_.request_write_to(md_loc->uid);
+    runner_.request_read_from(md_loc, 0);
+    spdlog::info("RuntimeContext: add_md md/{}/{} uid={}", group, name, md_loc->uid);
 }
 
 int32_t RuntimeContext::add_timer(int64_t nano_after) {
@@ -91,13 +130,10 @@ std::optional<longfist::types::Position> RuntimeContext::get_position(
     longfist::enums::Direction direction) const {
     auto& book = const_cast<BookKeeper&>(book_keeper_).get_book(book_uid_);
     auto key = instrument_id + "@" + exchange_id;
-
     const auto& positions = (direction == longfist::enums::Direction::Long)
                                 ? book.long_positions : book.short_positions;
     auto it = positions.find(key);
-    if (it != positions.end()) {
-        return it->second;
-    }
+    if (it != positions.end()) return it->second;
     return std::nullopt;
 }
 
@@ -109,9 +145,7 @@ std::optional<longfist::types::Quote> RuntimeContext::get_last_quote(
     const std::string& instrument_id, const std::string& exchange_id) const {
     auto key = instrument_id + "@" + exchange_id;
     auto it = quote_cache_.find(key);
-    if (it != quote_cache_.end()) {
-        return it->second;
-    }
+    if (it != quote_cache_.end()) return it->second;
     return std::nullopt;
 }
 

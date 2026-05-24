@@ -28,7 +28,14 @@ class MarketDataVendor : public BrokerVendor {
 public:
     using BrokerVendor::BrokerVendor;
     void react() override;
+    void on_start() override;
+    void on_active() override;
     MarketData* md_service() { return static_cast<MarketData*>(service_.get()); }
+
+    using apprentice::get_writer;
+    using apprentice::register_location;
+    using apprentice::request_read_from;
+    using apprentice::request_write_to;
 };
 
 } // namespace kungfu::wingchun::broker

@@ -79,12 +79,6 @@ void Master::react() {
 }
 
 void Master::on_active() {
-    int64_t current = now_ns() / 1000000; // to ms
-    if (supervisor_ && (current - last_monitor_time_) >= 1000) {
-        supervisor_->monitor();
-        last_monitor_time_ = current;
-    }
-
     // Parse nng JSON messages from pull socket
     if (pull_socket_) {
         std::string msg;
@@ -114,9 +108,6 @@ void Master::on_active() {
 
 void Master::on_exit() {
     spdlog::info("Master: shutting down");
-    if (supervisor_) {
-        supervisor_->stop_all(5000);
-    }
     if (pub_socket_) pub_socket_->close();
     if (pull_socket_) pull_socket_->close();
 }
@@ -165,6 +156,26 @@ void Master::publish_channel(uint32_t source_uid, uint32_t dest_uid) {
     channel.dest_uid = dest_uid;
 
     public_writer->write(now_ns(), channel);
+
+    // Also broadcast via NNG PUB so apprentices receive it immediately
+    if (pub_socket_) {
+        nlohmann::json j;
+        j["msg_type"] = longfist::types::Channel::tag;
+        j["source_uid"] = source_uid;
+        j["dest_uid"] = dest_uid;
+
+        auto it = locations_.find(source_uid);
+        if (it != locations_.end()) {
+            auto& loc = it->second;
+            j["source_category"] = static_cast<int32_t>(loc->cat);
+            j["source_group"] = loc->group;
+            j["source_name"] = loc->name;
+            j["source_mode"] = static_cast<int32_t>(loc->m);
+        }
+
+        pub_socket_->send(j.dump());
+    }
+
     spdlog::info("Master: published channel source={} dest={}", source_uid, dest_uid);
 }
 

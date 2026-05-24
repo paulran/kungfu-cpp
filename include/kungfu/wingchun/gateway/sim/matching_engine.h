@@ -19,6 +19,8 @@ struct Fill {
     double price;
     int64_t volume;
     int64_t trade_time;
+    longfist::enums::Side side;
+    longfist::enums::Offset offset;
 };
 
 class MatchingEngine {

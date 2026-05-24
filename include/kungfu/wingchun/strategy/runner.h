@@ -20,7 +20,14 @@ public:
 
     void react() override;
     void on_start() override;
+    void on_active() override;
     void on_exit() override;
+    void on_channel(uint32_t source_uid, uint32_t dest_uid) override;
+
+    using apprentice::get_writer;
+    using apprentice::register_location;
+    using apprentice::request_read_from;
+    using apprentice::request_write_to;
 
 private:
     std::shared_ptr<Strategy> strategy_;

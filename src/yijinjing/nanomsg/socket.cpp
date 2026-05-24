@@ -5,12 +5,23 @@
 
 namespace kungfu::yijinjing::nanomsg {
 
+namespace {
+struct NngInitializer {
+    NngInitializer() { nng_init(nullptr); }
+    ~NngInitializer() { nng_fini(); }
+};
+void ensure_nng_init() {
+    static NngInitializer instance;
+}
+} // namespace
+
 struct Socket::Impl {
     nng_socket sock = NNG_SOCKET_INITIALIZER;
     protocol proto;
     bool opened = false;
 
     void open(protocol p) {
+        ensure_nng_init();
         int rv = 0;
         proto = p;
         switch (p) {

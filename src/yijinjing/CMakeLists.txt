@@ -9,5 +9,5 @@ add_library(kf_yijinjing STATIC
 )
 target_include_directories(kf_yijinjing PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(kf_yijinjing
-    PUBLIC kf_common kf_longfist nng rxcpp spdlog::spdlog
+    PUBLIC kf_common kf_longfist nng rxcpp spdlog::spdlog nlohmann_json::nlohmann_json
 )

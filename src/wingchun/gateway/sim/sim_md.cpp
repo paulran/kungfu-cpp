@@ -1,4 +1,6 @@
 #include <kungfu/wingchun/gateway/sim/sim_md.h>
+#include <cstring>
+#include <cmath>
 
 namespace kungfu::wingchun::gateway::sim {
 
@@ -13,7 +15,11 @@ void SimMarketData::on_exit() {
 bool SimMarketData::subscribe(const std::string& instrument_id,
                              const std::string& exchange_id,
                              longfist::enums::InstrumentType) {
-    subscribed_.insert(instrument_id + "@" + exchange_id);
+    auto key = instrument_id + "@" + exchange_id;
+    subscribed_.insert(key);
+    if (last_prices_.find(key) == last_prices_.end()) {
+        last_prices_[key] = 10.00;
+    }
     return true;
 }
 
@@ -55,6 +61,46 @@ bool SimMarketData::replay_next() {
 
 bool SimMarketData::replay_done() const {
     return replay_index_ >= replay_data_.size();
+}
+
+bool SimMarketData::should_generate(int64_t now_ns) const {
+    return (now_ns - last_generate_time_) >= GENERATE_INTERVAL_NS;
+}
+
+void SimMarketData::generate_quotes(int64_t now_ns) {
+    last_generate_time_ = now_ns;
+    std::uniform_real_distribution<double> dist(-0.03, 0.03);
+
+    for (const auto& key : subscribed_) {
+        auto at_pos = key.find('@');
+        if (at_pos == std::string::npos) continue;
+
+        std::string instrument_id = key.substr(0, at_pos);
+        std::string exchange_id = key.substr(at_pos + 1);
+
+        double& last_price = last_prices_[key];
+        last_price += dist(rng_);
+        if (last_price < 1.0) last_price = 1.0;
+
+        longfist::types::Quote q{};
+        std::strncpy(q.instrument_id.data, instrument_id.c_str(), sizeof(q.instrument_id.data) - 1);
+        std::strncpy(q.exchange_id.data, exchange_id.c_str(), sizeof(q.exchange_id.data) - 1);
+        q.data_time = now_ns;
+        q.last_price = last_price;
+        q.bid_price_0 = last_price - 0.01;
+        q.ask_price_0 = last_price + 0.01;
+        q.bid_price_1 = last_price - 0.02;
+        q.ask_price_1 = last_price + 0.02;
+        q.bid_volume_0 = 1000;
+        q.ask_volume_0 = 800;
+        q.bid_volume_1 = 2000;
+        q.ask_volume_1 = 1500;
+        q.volume = 50000;
+        q.turnover = q.volume * last_price;
+
+        if (write_cb_) write_cb_(q);
+        if (quote_cb_) quote_cb_(q);
+    }
 }
 
 } // namespace kungfu::wingchun::gateway::sim

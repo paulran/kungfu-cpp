@@ -12,6 +12,7 @@ Cached::Cached(const yijinjing::io::location_ptr& home, yijinjing::io::Locator& 
 }
 
 void Cached::on_start() {
+    apprentice::on_start();
     spdlog::info("Cached: service started, uid={}", home_uid());
 }
 

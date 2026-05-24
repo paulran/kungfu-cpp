@@ -1,0 +1,6 @@
+[system]
+home = "D:/workspace/repos/rewrite-kungfu/kungfu-cpp/home"
+log_level = "info"
+low_latency = false
+page_size = 1048576
+archive_days = 7

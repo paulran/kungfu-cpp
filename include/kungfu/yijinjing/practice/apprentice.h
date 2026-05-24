@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kungfu/yijinjing/practice/hero.h>
+#include <kungfu/yijinjing/practice/protocol.h>
 
 namespace kungfu::yijinjing::practice {
 
@@ -9,7 +10,8 @@ public:
     apprentice(const io::location_ptr& home, io::Locator& locator, bool low_latency);
     ~apprentice() override = default;
 
-    virtual void on_start() {}
+    void on_start() override;
+    void on_active() override;
 
     io::location_ptr home() const { return home_; }
     uint32_t home_uid() const { return home_->uid; }
@@ -19,9 +21,13 @@ public:
 
 protected:
     io::location_ptr home_;
+    io::location_ptr master_location_;
 
     std::unique_ptr<nanomsg::Socket> push_socket_;
     std::unique_ptr<nanomsg::Socket> sub_socket_;
+
+    void register_to_master();
+    virtual void on_channel(uint32_t source_uid, uint32_t dest_uid) {}
 };
 
 } // namespace kungfu::yijinjing::practice

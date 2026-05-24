@@ -6,12 +6,15 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include <random>
+#include <unordered_map>
 
 namespace kungfu::wingchun::gateway::sim {
 
 class SimMarketData : public broker::MarketData {
 public:
     using QuoteCallback = std::function<void(const longfist::types::Quote&)>;
+    using WriteCallback = std::function<void(const longfist::types::Quote&)>;
 
     SimMarketData() = default;
     ~SimMarketData() override = default;
@@ -35,6 +38,10 @@ public:
     bool replay_done() const;
 
     void set_quote_callback(QuoteCallback cb) { quote_cb_ = std::move(cb); }
+    void set_write_callback(WriteCallback cb) { write_cb_ = std::move(cb); }
+
+    void generate_quotes(int64_t now_ns);
+    bool should_generate(int64_t now_ns) const;
 
 private:
     std::set<std::string> subscribed_;
@@ -42,6 +49,12 @@ private:
     size_t replay_index_ = 0;
     longfist::enums::BrokerState state_ = longfist::enums::BrokerState::Idle;
     QuoteCallback quote_cb_;
+    WriteCallback write_cb_;
+
+    std::unordered_map<std::string, double> last_prices_;
+    int64_t last_generate_time_ = 0;
+    static constexpr int64_t GENERATE_INTERVAL_NS = 500000000LL; // 500ms
+    std::mt19937 rng_{42};
 };
 
 } // namespace kungfu::wingchun::gateway::sim

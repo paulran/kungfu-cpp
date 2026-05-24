@@ -36,6 +36,7 @@ public:
     void stop();
 
     virtual void react() = 0;
+    virtual void on_start() {}
     virtual void on_active() {}
     virtual void on_exit() {}
 
