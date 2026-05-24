@@ -35,3 +35,21 @@ if(WIN32)
     target_link_libraries(kf_tests_phase2 PRIVATE kernel32)
 endif()
 gtest_discover_tests(kf_tests_phase2)
+
+# Phase 3 tests
+add_executable(kf_tests_phase3
+    test_matching_engine.cpp
+    test_wingchun.cpp
+    test_strategy.cpp
+    test_e2e_trading.cpp
+)
+target_include_directories(kf_tests_phase3 PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(kf_tests_phase3 PRIVATE
+    kf_wingchun kf_yijinjing kf_common kf_longfist
+    spdlog::spdlog
+    GTest::gtest_main
+)
+if(WIN32)
+    target_link_libraries(kf_tests_phase3 PRIVATE kernel32)
+endif()
+gtest_discover_tests(kf_tests_phase3)

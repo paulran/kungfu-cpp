@@ -20,5 +20,8 @@ enum class BrokerState : uint8_t {
     Unknown = 0, Idle = 1, DisConnected = 2, Connected = 3,
     LoggedIn = 4, Ready = 5, LoginFailed = 6
 };
+enum class VolumeCondition : uint8_t { Any = 0, Min = 1, All = 2 };
+enum class TimeCondition : uint8_t { GFD = 0, IOC = 1, GTC = 2 };
+enum class HistoryOrderAction : uint8_t { None = 0, Cancel = 1, Modify = 2 };
 
 } // namespace kungfu::longfist::enums

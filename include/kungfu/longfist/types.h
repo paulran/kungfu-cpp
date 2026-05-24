@@ -357,6 +357,58 @@ struct TradingDay {
     static constexpr const char* type_name = "TradingDay";
 };
 
+// Order action (cancel/modify)
+struct OrderAction {
+    BOOST_HANA_DEFINE_STRUCT(OrderAction,
+        (uint64_t, order_id),
+        (uint64_t, order_action_id),
+        (enums::HistoryOrderAction, action),
+        (double, price),
+        (int64_t, volume)
+    );
+    static constexpr int32_t tag = 204;
+    static constexpr const char* type_name = "OrderAction";
+};
+
+// Subscribe market data
+struct Subscribe {
+    BOOST_HANA_DEFINE_STRUCT(Subscribe,
+        (instrument_id_t, instrument_id),
+        (exchange_id_t, exchange_id),
+        (enums::InstrumentType, instrument_type)
+    );
+    static constexpr int32_t tag = 401;
+    static constexpr const char* type_name = "Subscribe";
+};
+
+// Unsubscribe market data
+struct Unsubscribe {
+    BOOST_HANA_DEFINE_STRUCT(Unsubscribe,
+        (instrument_id_t, instrument_id),
+        (exchange_id_t, exchange_id)
+    );
+    static constexpr int32_t tag = 402;
+    static constexpr const char* type_name = "Unsubscribe";
+};
+
+// Request position query
+struct RequestPosition {
+    BOOST_HANA_DEFINE_STRUCT(RequestPosition,
+        (account_id_t, account_id)
+    );
+    static constexpr int32_t tag = 403;
+    static constexpr const char* type_name = "RequestPosition";
+};
+
+// Request account/asset query
+struct RequestAccount {
+    BOOST_HANA_DEFINE_STRUCT(RequestAccount,
+        (account_id_t, account_id)
+    );
+    static constexpr int32_t tag = 404;
+    static constexpr const char* type_name = "RequestAccount";
+};
+
 #pragma pack(pop)
 
 } // namespace types
