@@ -1,0 +1,18 @@
+[submodule "3rdparty/hana"]
+	path = 3rdparty/hana
+	url = git@github.com:boostorg/hana.git
+[submodule "3rdparty/nng"]
+	path = 3rdparty/nng
+	url = git@github.com:nanomsg/nng.git
+[submodule "3rdparty/nlohmann"]
+	path = 3rdparty/nlohmann
+	url = git@github.com:nlohmann/json.git
+[submodule "3rdparty/spdlog"]
+	path = 3rdparty/spdlog
+	url = git@github.com:gabime/spdlog.git
+[submodule "3rdparty/rxcpp"]
+	path = 3rdparty/rxcpp
+	url = git@github.com:ReactiveX/RxCpp.git
+[submodule "3rdparty/googletest"]
+	path = 3rdparty/googletest
+	url = git@github.com:google/googletest.git
