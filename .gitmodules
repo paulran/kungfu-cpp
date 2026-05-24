@@ -16,3 +16,12 @@
 [submodule "3rdparty/googletest"]
 	path = 3rdparty/googletest
 	url = git@github.com:google/googletest.git
+[submodule "3rdparty/sqlite3"]
+	path = 3rdparty/sqlite3
+	url = git@github.com:azadkuh/sqlite-amalgamation.git
+[submodule "3rdparty/sqlite_orm"]
+	path = 3rdparty/sqlite_orm
+	url = git@github.com:fnc12/sqlite_orm.git
+[submodule "3rdparty/tomlplusplus"]
+	path = 3rdparty/tomlplusplus
+	url = git@github.com:marzer/tomlplusplus.git

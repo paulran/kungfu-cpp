@@ -286,6 +286,77 @@ struct TimeRequest {
     static constexpr const char* type_name = "TimeRequest";
 };
 
+// Deregister: app leaving the system
+struct Deregister {
+    BOOST_HANA_DEFINE_STRUCT(Deregister,
+        (uint32_t, uid),
+        (int32_t, pid)
+    );
+    static constexpr int32_t tag = 10103;
+    static constexpr const char* type_name = "Deregister";
+};
+
+// Location info published by master
+struct Location {
+    BOOST_HANA_DEFINE_STRUCT(Location,
+        (uint32_t, uid),
+        (int32_t, category),
+        (array_t<32>, group),
+        (array_t<32>, name),
+        (int32_t, mode)
+    );
+    static constexpr int32_t tag = 10104;
+    static constexpr const char* type_name = "Location";
+};
+
+// Broker state update (connected/disconnected/etc)
+struct BrokerStateUpdate {
+    BOOST_HANA_DEFINE_STRUCT(BrokerStateUpdate,
+        (uint32_t, source_uid),
+        (int32_t, state)
+    );
+    static constexpr int32_t tag = 10105;
+    static constexpr const char* type_name = "BrokerStateUpdate";
+};
+
+// Request cached state recovery
+struct RequestCached {
+    BOOST_HANA_DEFINE_STRUCT(RequestCached,
+        (uint32_t, source_uid),
+        (int64_t, from_time)
+    );
+    static constexpr int32_t tag = 10012;
+    static constexpr const char* type_name = "RequestCached";
+};
+
+// Cached state recovery complete
+struct RequestCachedDone {
+    BOOST_HANA_DEFINE_STRUCT(RequestCachedDone,
+        (uint32_t, dest_uid)
+    );
+    static constexpr int32_t tag = 10013;
+    static constexpr const char* type_name = "RequestCachedDone";
+};
+
+// Cache reset signal (clear all cached state)
+struct CacheReset {
+    BOOST_HANA_DEFINE_STRUCT(CacheReset,
+        (int64_t, trigger_time)
+    );
+    static constexpr int32_t tag = 10014;
+    static constexpr const char* type_name = "CacheReset";
+};
+
+// Trading day notification
+struct TradingDay {
+    BOOST_HANA_DEFINE_STRUCT(TradingDay,
+        (array_t<16>, trading_day),
+        (int64_t, timestamp)
+    );
+    static constexpr int32_t tag = 10015;
+    static constexpr const char* type_name = "TradingDay";
+};
+
 #pragma pack(pop)
 
 } // namespace types

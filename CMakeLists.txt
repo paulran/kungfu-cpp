@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(kungfu-cpp VERSION 0.1.0 LANGUAGES CXX C)
+project(kungfu-cpp VERSION 0.2.0 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -36,6 +36,22 @@ add_subdirectory(3rdparty/spdlog EXCLUDE_FROM_ALL)
 # rxcpp (header-only)
 add_library(rxcpp INTERFACE)
 target_include_directories(rxcpp INTERFACE ${CMAKE_SOURCE_DIR}/3rdparty/rxcpp/Rx/v2/src)
+
+# sqlite3
+set(SQLITE_ENABLE_COLUMN_METADATA ON CACHE BOOL "" FORCE)
+set(SQLITE_OMIT_DECLTYPE OFF CACHE BOOL "" FORCE)
+set(BUILD_SHELL OFF CACHE BOOL "" FORCE)
+add_subdirectory(3rdparty/sqlite3 EXCLUDE_FROM_ALL)
+target_include_directories(SQLite3 PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/3rdparty/sqlite3>)
+
+# sqlite_orm (header-only)
+add_library(sqlite_orm INTERFACE)
+target_include_directories(sqlite_orm INTERFACE ${CMAKE_SOURCE_DIR}/3rdparty/sqlite_orm/include)
+target_link_libraries(sqlite_orm INTERFACE SQLite3)
+
+# tomlplusplus (header-only)
+add_library(tomlplusplus INTERFACE)
+target_include_directories(tomlplusplus INTERFACE ${CMAKE_SOURCE_DIR}/3rdparty/tomlplusplus/include)
 
 # === Project libraries ===
 add_subdirectory(src)
