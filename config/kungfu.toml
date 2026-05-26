@@ -6,7 +6,7 @@ page_size = 1048576
 archive_days = 7
 
 [api]
-host = "127.0.0.1"
+host = "0.0.0.0"
 port = 8080
 ws_port = 8081
 jwt_secret = "kungfu-default-secret"

@@ -137,7 +137,7 @@ void ApiGateway::start_http_server() {
     }
 
     // Register REST API tree handler
-    rv = nng_http_handler_alloc(&api_handler_, "/api/v1/", api_http_handler);
+    rv = nng_http_handler_alloc(&api_handler_, "/api/v1", api_http_handler);
     if (rv != 0) {
         spdlog::error("API: failed to alloc handler: {}", nng_strerror(rv));
         return;
