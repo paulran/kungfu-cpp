@@ -41,14 +41,14 @@ void from_json(const nlohmann::json& j, T& obj) {
         using FieldType = std::remove_cvref_t<decltype(field)>;
 
         if constexpr (is_array_t_v<FieldType>) {
-            auto s = j[name].get<std::string>();
+            auto s = j[name].template get<std::string>();
             std::strncpy(field.data, s.c_str(), sizeof(field.data) - 1);
             field.data[sizeof(field.data) - 1] = '\0';
         } else if constexpr (std::is_enum_v<FieldType>) {
             field = static_cast<FieldType>(
-                j[name].get<std::underlying_type_t<FieldType>>());
+                j[name].template get<std::underlying_type_t<FieldType>>());
         } else {
-            field = j[name].get<FieldType>();
+            field = j[name].template get<FieldType>();
         }
     });
 }

@@ -1,4 +1,5 @@
 #include <kungfu/common/hash.h>
+#include <cstring>
 
 namespace kungfu::common {
 

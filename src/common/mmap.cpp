@@ -2,10 +2,18 @@
 #include <stdexcept>
 #include <filesystem>
 
+#ifdef KUNGFU_WIN32
+#include <windows.h>
+#else
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
 namespace kungfu::common {
 
 #ifdef KUNGFU_WIN32
-#include <windows.h>
 
 static std::wstring utf8_to_wide(const std::string& str) {
     if (str.empty()) return {};
@@ -71,11 +79,6 @@ void mmap_close(MappedFile& mf) {
 }
 
 #else // POSIX
-
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
 
 MappedFile mmap_open(const std::string& path, size_t size, bool writable) {
     MappedFile mf{};
