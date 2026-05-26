@@ -33,6 +33,17 @@ KungfuConfig KungfuConfig::load(const std::string& path) {
         if (auto v = (*sys)["archive_days"].value<int64_t>()) config.system.archive_days = static_cast<int>(*v);
     }
 
+    // Parse [api] section
+    if (auto api = tbl["api"].as_table()) {
+        if (auto v = (*api)["host"].value<std::string>()) config.api.host = *v;
+        if (auto v = (*api)["port"].value<int64_t>()) config.api.port = static_cast<uint16_t>(*v);
+        if (auto v = (*api)["ws_port"].value<int64_t>()) config.api.ws_port = static_cast<uint16_t>(*v);
+        if (auto v = (*api)["jwt_secret"].value<std::string>()) config.api.jwt_secret = *v;
+        if (auto v = (*api)["jwt_expire_hours"].value<int64_t>()) config.api.jwt_expire_hours = static_cast<int>(*v);
+        if (auto v = (*api)["admin_user"].value<std::string>()) config.api.admin_user = *v;
+        if (auto v = (*api)["admin_password"].value<std::string>()) config.api.admin_password = *v;
+    }
+
     // Parse [[services]] array
     if (auto services = tbl["services"].as_array()) {
         for (const auto& elem : *services) {

@@ -4,3 +4,12 @@ log_level = "info"
 low_latency = false
 page_size = 1048576
 archive_days = 7
+
+[api]
+host = "127.0.0.1"
+port = 8080
+ws_port = 8081
+jwt_secret = "kungfu-default-secret"
+jwt_expire_hours = 24
+admin_user = "admin"
+admin_password = "admin"

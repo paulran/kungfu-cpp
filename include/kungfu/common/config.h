@@ -26,8 +26,19 @@ struct ProcessConfig {
     int priority = 5;
 };
 
+struct ApiConfig {
+    std::string host = "127.0.0.1";
+    uint16_t port = 8080;
+    uint16_t ws_port = 8081;
+    std::string jwt_secret = "kungfu-default-secret";
+    int jwt_expire_hours = 24;
+    std::string admin_user = "admin";
+    std::string admin_password = "admin";
+};
+
 struct KungfuConfig {
     SystemConfig system;
+    ApiConfig api;
     std::vector<ProcessConfig> services;
 
     static KungfuConfig load(const std::string& path);

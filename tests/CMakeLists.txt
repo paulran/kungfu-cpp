@@ -51,3 +51,26 @@ if(WIN32)
     target_link_libraries(kf_tests_phase3 PRIVATE kernel32)
 endif()
 gtest_discover_tests(kf_tests_phase3)
+
+# API Gateway tests
+add_executable(kf_tests_api
+    test_api_gateway.cpp
+    ${PROJECT_SOURCE_DIR}/src/services/api/jwt.cpp
+    ${PROJECT_SOURCE_DIR}/src/services/api/api_gateway.cpp
+    ${PROJECT_SOURCE_DIR}/src/services/api/http_handler.cpp
+    ${PROJECT_SOURCE_DIR}/src/services/api/ws_handler.cpp
+    ${PROJECT_SOURCE_DIR}/src/services/api/ws_nng.cpp
+)
+target_include_directories(kf_tests_api PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/src/services/api
+)
+target_link_libraries(kf_tests_api PRIVATE
+    kf_yijinjing kf_common kf_longfist
+    spdlog::spdlog
+    GTest::gtest_main
+)
+if(WIN32)
+    target_link_libraries(kf_tests_api PRIVATE kernel32)
+endif()
+gtest_discover_tests(kf_tests_api)
