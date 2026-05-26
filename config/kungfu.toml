@@ -1,5 +1,5 @@
 [system]
-home = "D:/workspace/repos/rewrite-kungfu/kungfu-cpp/home"
+home = "~/.kungfu-cpp"
 log_level = "info"
 low_latency = false
 page_size = 1048576

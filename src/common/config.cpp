@@ -1,8 +1,18 @@
 #include <kungfu/common/config.h>
 #include <toml++/toml.hpp>
 #include <stdexcept>
+#include <cstdlib>
 
 namespace kungfu::common {
+
+static std::string expand_home(const std::string& path) {
+    if (path.size() >= 1 && path[0] == '~') {
+        const char* home = std::getenv("HOME");
+        if (!home) home = "/tmp";
+        return std::string(home) + path.substr(1);
+    }
+    return path;
+}
 
 KungfuConfig KungfuConfig::load(const std::string& path) {
     KungfuConfig config;
@@ -16,7 +26,7 @@ KungfuConfig KungfuConfig::load(const std::string& path) {
 
     // Parse [system] section
     if (auto sys = tbl["system"].as_table()) {
-        if (auto v = (*sys)["home"].value<std::string>()) config.system.home = *v;
+        if (auto v = (*sys)["home"].value<std::string>()) config.system.home = expand_home(*v);
         if (auto v = (*sys)["log_level"].value<std::string>()) config.system.log_level = *v;
         if (auto v = (*sys)["low_latency"].value<bool>()) config.system.low_latency = *v;
         if (auto v = (*sys)["page_size"].value<int64_t>()) config.system.page_size = static_cast<uint32_t>(*v);
