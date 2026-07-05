@@ -1,62 +1,106 @@
-#pragma once
+// SPDX-License-Identifier: Apache-2.0
 
-#include <kungfu/common/types.h>
-#include <cstdint>
-#include <cstring>
-#include <atomic>
+#ifndef KUNGFU_YIJINJING_FRAME_H
+#define KUNGFU_YIJINJING_FRAME_H
+
+#include <kungfu/yijinjing/journal/common.h>
 
 namespace kungfu::yijinjing::journal {
 
-#pragma pack(push, 1)
-struct FrameHeader {
-    volatile uint32_t length;
-    uint32_t header_length;
-    int64_t gen_time;
-    int64_t trigger_time;
-    volatile int32_t msg_type;
-    uint32_t source;
-    uint32_t dest;
-};
-#pragma pack(pop)
+// KF_DEFINE_PACK_TYPE(                                    //
+//     frame_header, 0, PK(gen_time), TIMESTAMP(gen_time), //
+//     /** total frame length (including header and data body) */
+//     (volatile uint32_t, length), //
+//     /** header length */
+//     (uint32_t, header_length), //
+//     /** generate time of the frame data */
+//     (int64_t, gen_time), //
+//     /** trigger time for this frame, use for latency stats */
+//     (int64_t, trigger_time), //
+//     /** msg type of the data in frame */
+//     (volatile int32_t, msg_type), //
+//     /** source of this frame */
+//     (uint32_t, source), //
+//     /** dest of this frame */
+//     (uint32_t, dest) //
+//);
 
-static_assert(sizeof(FrameHeader) == 36, "FrameHeader must be 36 bytes");
+/**
+ * Basic memory unit,
+ * holds header / data / errorMsg (if needs)
+ */
+struct frame : event {
+  ~frame() override = default;
 
-class Frame {
-public:
-    Frame() : address_(nullptr) {}
-    explicit Frame(void* address) : address_(static_cast<char*>(address)) {}
+  [[nodiscard]] bool has_data() const { return header_->length > 0 && header_->msg_type > 0; }
 
-    bool valid() const { return address_ != nullptr; }
-    bool has_data() const {
-        auto* h = header();
-        return h->length > 0 && h->msg_type > 0;
-    }
+  [[nodiscard]] uintptr_t address() const { return reinterpret_cast<uintptr_t>(header_); }
 
-    FrameHeader* header() { return reinterpret_cast<FrameHeader*>(address_); }
-    const FrameHeader* header() const { return reinterpret_cast<const FrameHeader*>(address_); }
+  [[nodiscard]] uint32_t frame_length() const { return header_->length; }
 
-    int32_t msg_type() const { return header()->msg_type; }
-    int64_t gen_time() const { return header()->gen_time; }
-    int64_t trigger_time() const { return header()->trigger_time; }
-    uint32_t source() const { return header()->source; }
-    uint32_t dest() const { return header()->dest; }
-    uint32_t frame_length() const { return header()->length; }
-    uint32_t data_length() const { return header()->length - header()->header_length; }
+  [[nodiscard]] uint32_t header_length() const { return header_->header_length; }
 
-    void* data_address() { return address_ + header()->header_length; }
-    const void* data_address() const { return address_ + header()->header_length; }
+  [[nodiscard]] uint32_t data_length() const override { return frame_length() - header_length(); }
 
-    template<typename T>
-    const T& data() const { return *static_cast<const T*>(data_address()); }
+  [[nodiscard]] int64_t gen_time() const override { return header_->gen_time; }
 
-    template<typename T>
-    void copy_data(const T& d) { std::memcpy(data_address(), &d, sizeof(T)); }
+  [[nodiscard]] int64_t trigger_time() const override { return header_->trigger_time; }
 
-    void* next_address() const { return address_ + header()->length; }
-    void* raw_address() const { return address_; }
+  [[nodiscard]] int32_t msg_type() const override { return header_->msg_type; }
+
+  [[nodiscard]] uint32_t source() const override { return header_->source; }
+
+  [[nodiscard]] uint32_t dest() const override { return header_->dest; }
+
+  [[nodiscard]] const void *data_address() const override {
+    return reinterpret_cast<void *>(address() + header_length());
+  }
+
+  [[nodiscard]] const char *data_as_bytes() const override {
+    return reinterpret_cast<char *>(address() + header_length());
+  }
+
+  [[nodiscard]] std::string data_as_string() const override { return std::string(data_as_bytes()); }
+
+  [[nodiscard]] std::string to_string() const override { return std::string(reinterpret_cast<char *>(address())); }
+
+  template <typename T> size_t copy_data(const T &data) {
+    size_t length = sizeof(T);
+    memcpy(const_cast<void *>(data_address()), &data, length);
+    return length;
+  }
 
 private:
-    char* address_;
-};
+  /** address with type,
+   * will keep moving forward until change page */
+  longfist::types::frame_header *header_ = nullptr;
 
+  frame() = default;
+
+  void set_address(uintptr_t address) { header_ = reinterpret_cast<longfist::types::frame_header *>(address); }
+
+  void move_to_next() { set_address(address() + frame_length()); }
+
+  void set_header_length() { header_->header_length = sizeof(longfist::types::frame_header); }
+
+  void set_data_length(uint32_t length) { header_->length = header_length() + length; }
+
+  void set_gen_time(int64_t gen_time) { header_->gen_time = gen_time; }
+
+  void set_trigger_time(int64_t trigger_time) { header_->trigger_time = trigger_time; }
+
+  void set_msg_type(int32_t msg_type) { header_->msg_type = msg_type; }
+
+  void set_source(uint32_t source) { header_->source = source; }
+
+  void set_dest(uint32_t dest) { header_->dest = dest; }
+
+  void copy(frame &source) { memcpy(header_, source.header_, source.frame_length()); }
+
+  friend class journal;
+
+  friend class writer;
+};
 } // namespace kungfu::yijinjing::journal
+
+#endif // KUNGFU_YIJINJING_FRAME_H

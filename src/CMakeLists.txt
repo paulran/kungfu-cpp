@@ -1,9 +1,16 @@
-add_subdirectory(common)
-add_subdirectory(yijinjing)
+project(${LIBKUNGFU_NAME})
 
-add_library(kf_longfist INTERFACE)
-target_include_directories(kf_longfist INTERFACE ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(kf_longfist INTERFACE boost_hana nlohmann_json::nlohmann_json)
+enable_windows_export_all_symbols()
 
-add_subdirectory(wingchun)
-add_subdirectory(services)
+file(GLOB_RECURSE KUNGFU_OPTIM_SOURCE_FILES ${PROJECT_SOURCE_DIR}/*.cpp)
+file(GLOB_RECURSE KUNGFU_CACHE_SOURCE_FILES ${PROJECT_SOURCE_DIR}/yijinjing/cache/*.cpp)
+list(REMOVE_ITEM KUNGFU_OPTIM_SOURCE_FILES ${KUNGFU_CACHE_SOURCE_FILES})
+
+add_library_object(kungfu_cache "${KUNGFU_CACHE_SOURCE_FILES}" "${COMPILER_OPTIMIZE_OFF_OPTIONS}" "${KUNGFU_BUILD_DIR}")
+add_library_object(kungfu_optim "${KUNGFU_OPTIM_SOURCE_FILES}" "${COMPILER_OPTIMIZE_ON_OPTIONS}" "${KUNGFU_BUILD_DIR}")
+
+add_library(${LIBKUNGFU_NAME} SHARED $<TARGET_OBJECTS:kungfu_optim> $<TARGET_OBJECTS:kungfu_cache>)
+set_target_properties(${LIBKUNGFU_NAME} PROPERTIES LINKER_LANGUAGE CXX)
+set_target_properties(${LIBKUNGFU_NAME} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${KUNGFU_BUILD_DIR})
+target_compile_options(${LIBKUNGFU_NAME} PRIVATE "$<$<CONFIG:Release>:${COMPILER_OPTIMIZE_ON_OPTIONS}>")
+target_link_libraries(${LIBKUNGFU_NAME} ${CONAN_LIBS})

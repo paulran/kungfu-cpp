@@ -1,6 +1,0 @@
-add_executable(kf_master main.cpp master.cpp)
-target_include_directories(kf_master PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(kf_master PRIVATE kf_yijinjing kf_common kf_longfist spdlog::spdlog nlohmann_json::nlohmann_json)
-if(WIN32)
-    target_link_libraries(kf_master PRIVATE kernel32)
-endif()

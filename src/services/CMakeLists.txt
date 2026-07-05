@@ -1,5 +1,0 @@
-add_subdirectory(master)
-add_subdirectory(cached)
-add_subdirectory(ledger)
-add_subdirectory(archive)
-add_subdirectory(api)

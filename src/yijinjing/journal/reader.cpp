@@ -1,128 +1,77 @@
-#include <kungfu/yijinjing/journal/reader.h>
-#include <algorithm>
-#include <filesystem>
+// SPDX-License-Identifier: Apache-2.0
+
+#include <kungfu/yijinjing/journal/journal.h>
+#include <kungfu/yijinjing/journal/page.h>
+#include <kungfu/yijinjing/time.h>
 
 namespace kungfu::yijinjing::journal {
+reader::~reader() { journals_.clear(); }
 
-Reader::Reader(io::Locator& locator) : locator_(locator) {}
-
-void Reader::join(const io::location_ptr& location, uint32_t dest_uid, int64_t from_time) {
-    Slot slot;
-    slot.location = location;
-    slot.dest_uid = dest_uid;
-    slot.page_id = 0;
-    slot.position = sizeof(PageHeader);
-    slot.current_page = nullptr;
-
-    auto ids = locator_.list_page_ids(location, dest_uid);
-    if (!ids.empty()) {
-        slot.page_id = ids.front();
-        slot.load_page(locator_, slot.page_id);
-
-        if (from_time > 0 && slot.current_page) {
-            // Skip frames until we find one with gen_time >= from_time
-            while (slot.has_data()) {
-                auto frame = slot.get_frame();
-                if (frame.gen_time() >= from_time) break;
-                slot.advance(locator_);
-            }
-        }
-    }
-
-    slots_.push_back(std::move(slot));
-    current_idx_ = -1;
+void reader::join(const data::location_ptr &location, uint32_t dest_id, const int64_t from_time) {
+  auto key = static_cast<uint64_t>(location->uid) << 32u | static_cast<uint64_t>(dest_id);
+  auto result = journals_.try_emplace(key, location, dest_id, false, lazy_);
+  if (result.second) {
+    journals_.at(key).seek_to_time(from_time);
+  }
+  if (current_ == nullptr) {
+    sort(); // do not sort if current_ is set (because we could be in process of reading)
+  }
 }
 
-void Reader::disjoin(uint32_t location_uid) {
-    slots_.erase(
-        std::remove_if(slots_.begin(), slots_.end(),
-            [location_uid](const Slot& s) { return s.location->uid == location_uid; }),
-        slots_.end()
-    );
-    current_idx_ = -1;
-}
-
-bool Reader::data_available() {
-    sort_current();
-    return current_idx_ >= 0;
-}
-
-Frame Reader::current_frame() {
-    if (current_idx_ < 0) return Frame(nullptr);
-    return slots_[current_idx_].get_frame();
-}
-
-void Reader::next() {
-    if (current_idx_ < 0) return;
-    slots_[current_idx_].advance(locator_);
-    current_idx_ = -1;
-}
-
-void Reader::sort_current() {
-    current_idx_ = -1;
-    int64_t earliest = INT64_MAX;
-
-    for (int i = 0; i < static_cast<int>(slots_.size()); i++) {
-        if (slots_[i].has_data()) {
-            auto frame = slots_[i].get_frame();
-            if (frame.gen_time() < earliest) {
-                earliest = frame.gen_time();
-                current_idx_ = i;
-            }
-        }
-    }
-}
-
-// Slot implementation
-
-Frame Reader::Slot::get_frame() {
-    if (!current_page) return Frame(nullptr);
-    return current_page->frame_at(position);
-}
-
-bool Reader::Slot::has_data() {
-    if (!current_page) return false;
-    auto frame = current_page->frame_at(position);
-    return frame.has_data();
-}
-
-void Reader::Slot::advance(io::Locator& locator) {
-    if (!current_page) return;
-
-    auto frame = current_page->frame_at(position);
-    if (!frame.has_data()) return;
-
-    uint32_t frame_len = frame.frame_length();
-    position += frame_len;
-
-    // Check if we need to move to next page
-    if (position + sizeof(FrameHeader) >= current_page->size()) {
-        load_page(locator, page_id + 1);
+void reader::disjoin(const uint32_t location_uid) {
+  for (auto it = journals_.begin(); it != journals_.end();) {
+    if (it->first >> 32u xor location_uid) {
+      it++;
     } else {
-        auto next_frame = current_page->frame_at(position);
-        if (!next_frame.has_data()) {
-            // Try loading next page (might have been created since we opened this one)
-            auto path = locator.journal_path(location, dest_uid, page_id + 1);
-            if (std::filesystem::exists(path)) {
-                load_page(locator, page_id + 1);
-            }
-        }
+      it = journals_.erase(it);
     }
+  }
+  current_ = nullptr;
+  sort();
 }
 
-void Reader::Slot::load_page(io::Locator& locator, uint32_t pid) {
-    auto path = locator.journal_path(location, dest_uid, pid);
-    if (!std::filesystem::exists(path)) {
-        current_page = nullptr;
-        return;
+void reader::disjoin_channel(uint32_t location_uid, uint32_t dest_id) {
+  auto key = static_cast<uint64_t>(location_uid) << 32u | static_cast<uint64_t>(dest_id);
+  for (auto it = journals_.begin(); it != journals_.end();) {
+    if (it->first != key) {
+      it++;
+    } else {
+      journals_.erase(it);
+      break; // only one journal erased
     }
-    try {
-        current_page = Page::open(path, std::filesystem::file_size(path), false);
-        page_id = pid;
-        position = current_page->first_frame_position();
-    } catch (...) {
-        current_page = nullptr;
-    }
+  }
+  current_ = nullptr;
+  sort();
 }
 
+bool reader::data_available() {
+  sort();
+  return current_ != nullptr && current_frame()->has_data();
+}
+
+void reader::seek_to_time(int64_t nanotime) {
+  for (auto &pair : journals_) {
+    pair.second.seek_to_time(nanotime);
+  }
+  sort();
+}
+
+void reader::next() {
+  if (current_ != nullptr) {
+    current_->next();
+  }
+  sort();
+}
+
+void reader::sort() {
+  int64_t min_time = time::now_in_nano();
+  for (auto &pair : journals_) {
+    auto &journal = pair.second;
+    auto &frame = journal.current_frame();
+    if (frame->has_data() && frame->gen_time() <= min_time) {
+      min_time = frame->gen_time();
+      current_ = &journal;
+    }
+  }
+}
 } // namespace kungfu::yijinjing::journal

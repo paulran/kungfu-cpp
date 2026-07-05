@@ -1,51 +1,97 @@
-#pragma once
+// SPDX-License-Identifier: Apache-2.0
 
+#ifndef YIJINJING_PAGE_H
+#define YIJINJING_PAGE_H
+
+#include <kungfu/yijinjing/journal/common.h>
 #include <kungfu/yijinjing/journal/frame.h>
-#include <kungfu/common/mmap.h>
-#include <kungfu/common/types.h>
-#include <memory>
-#include <string>
 
 namespace kungfu::yijinjing::journal {
 
-#pragma pack(push, 1)
-struct PageHeader {
-    uint32_t version;
-    uint32_t header_length;
-    uint32_t page_size;
-    uint32_t frame_header_length;
-    uint64_t last_frame_position;
-};
-#pragma pack(pop)
+// KF_DEFINE_PACK_TYPE(                          //
+//     page_header, 1, PK(version), PERPETUAL(), //
+//     (uint32_t, version),                      //
+//     (uint32_t, page_header_length),           //
+//     (uint32_t, page_size),                    //
+//     (uint32_t, frame_header_length),          //
+//     (uint64_t, last_frame_position)           //
+//);
 
-static_assert(sizeof(PageHeader) == 24, "PageHeader must be 24 bytes");
-
-class Page {
+class page {
 public:
-    static std::shared_ptr<Page> open(const std::string& path, size_t size, bool is_writing);
-    ~Page();
+  ~page();
 
-    PageHeader* header() { return reinterpret_cast<PageHeader*>(mf_.address); }
-    const PageHeader* header() const { return reinterpret_cast<const PageHeader*>(mf_.address); }
+  [[nodiscard]] uint32_t get_page_size() const { return header_->page_size; }
 
-    Frame frame_at(uint64_t position) {
-        return Frame(static_cast<char*>(mf_.address) + position);
-    }
+  [[nodiscard]] data::location_ptr get_location() const { return location_; }
 
-    uint64_t first_frame_position() const { return sizeof(PageHeader); }
+  [[nodiscard]] uint32_t get_dest_id() const { return dest_id_; }
 
-    uint64_t last_frame_position() const { return header()->last_frame_position; }
+  [[nodiscard]] uint32_t get_page_id() const { return page_id_; }
 
-    bool is_full(uint32_t needed) const {
-        return header()->last_frame_position + needed + sizeof(FrameHeader) >= mf_.size;
-    }
+  [[nodiscard]] int64_t begin_time() const {
+    return reinterpret_cast<longfist::types::frame_header *>(first_frame_address())->gen_time;
+  }
 
-    size_t size() const { return mf_.size; }
-    void* raw() { return mf_.address; }
+  [[nodiscard]] int64_t end_time() const {
+    return reinterpret_cast<longfist::types::frame_header *>(last_frame_address())->gen_time;
+  }
+
+  [[nodiscard]] uintptr_t address() const { return reinterpret_cast<uintptr_t>(header_); }
+
+  [[nodiscard]] uintptr_t address_border() const {
+    return address() + header_->page_size - sizeof(longfist::types::frame_header);
+  }
+
+  [[nodiscard]] uintptr_t first_frame_address() const { return address() + header_->page_header_length; }
+
+  [[nodiscard]] uintptr_t last_frame_address() const { return address() + header_->last_frame_position; }
+
+  [[nodiscard]] bool is_full() const {
+    return last_frame_address() + reinterpret_cast<longfist::types::frame_header *>(last_frame_address())->length >
+           address_border();
+  }
+
+  static page_ptr load(const data::location_ptr &location, uint32_t dest_id, uint32_t page_id, bool is_writing,
+                       bool lazy);
+
+  static std::string get_page_path(const data::location_ptr &location, uint32_t dest_id, uint32_t page_id);
+
+  static uint32_t find_page_id(const data::location_ptr &location, uint32_t dest_id, int64_t time);
 
 private:
-    Page() = default;
-    common::MappedFile mf_{};
+  const data::location_ptr location_;
+  const uint32_t dest_id_;
+  const uint32_t page_id_;
+  const bool lazy_;
+  const size_t size_;
+  const longfist::types::page_header *header_;
+
+  page(data::location_ptr location, uint32_t dest_id, uint32_t page_id, size_t size, bool lazy, uintptr_t address);
+
+  /**
+   * update page header when new frame added
+   */
+  void set_last_frame_position(uint64_t position);
+
+  friend class journal;
+
+  friend class writer;
+
+  friend class reader;
 };
 
+inline static uint32_t find_page_size(const data::location_ptr &location, uint32_t dest_id) {
+  if (location->category == longfist::enums::category::MD && dest_id != 1) {
+    return 128 * MB;
+  }
+  if ((location->category == longfist::enums::category::TD ||
+       location->category == longfist::enums::category::STRATEGY) &&
+      dest_id != 0) {
+    return 16 * MB;
+  }
+  return MB;
+}
 } // namespace kungfu::yijinjing::journal
+
+#endif // YIJINJING_PAGE_H
