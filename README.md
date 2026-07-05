@@ -124,6 +124,17 @@ kungfu-cpp/
 ---
 
 ## 编译
+* 原始依赖库版本
+"fmt/8.1.1" 更新到12.2.0,
+"nlohmann_json/3.11.2",
+"nng/1.5.2" 更新到 https://github.com/nanomsg/nng/tree/v1.12.0
+"rxcpp/4.1.1",
+"sqlite3/3.39.2" 更新到 3.38.2
+"sqlite_orm/1.7.1" 更新到 v1.9.1
+"spdlog/1.10.0" 更新到 1.17.0,
+"tabulate/1.4",
+"boost/?",
+"hana/?"
 
 ```bash
 # 前置要求: CMake 3.20+, C++20 编译器 (MSVC 2022 / GCC 11+ / Clang 14+)
@@ -131,6 +142,9 @@ kungfu-cpp/
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release
+
+# 单独编译kf_master
+cmake -DBUILD_TESTS=OFF .. && make kf_master -j4
 
 # 运行测试 (88 个)
 ctest --build-config Release

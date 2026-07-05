@@ -4,10 +4,11 @@
 // Created by Keren Dong on 2020/1/28.
 //
 
+
 #ifndef KUNGFU_LONGFIST_ENUM_H
 #define KUNGFU_LONGFIST_ENUM_H
 
-#include <fmt/ostream.h>
+#include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/fmt/ostr.h>
 
@@ -575,4 +576,33 @@ template <typename T, typename U> [[maybe_unused]] inline T sub_data_bitwise(con
   return static_cast<T>(static_cast<U>(a) | static_cast<U>(b));
 }
 } // namespace kungfu::longfist::enums
+
+namespace fmt {
+template <> struct formatter<kungfu::longfist::enums::mode> {
+  template <typename ParseContext> constexpr auto parse(ParseContext &ctx) const { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const kungfu::longfist::enums::mode &m, FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{}", kungfu::longfist::enums::get_mode_name(m));
+  }
+};
+
+template <> struct formatter<kungfu::longfist::enums::category> {
+  template <typename ParseContext> constexpr auto parse(ParseContext &ctx) const { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const kungfu::longfist::enums::category &c, FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{}", kungfu::longfist::enums::get_category_name(c));
+  }
+};
+
+template <> struct formatter<kungfu::longfist::enums::layout> {
+  template <typename ParseContext> constexpr auto parse(ParseContext &ctx) const { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const kungfu::longfist::enums::layout &l, FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{}", kungfu::longfist::enums::get_layout_name(l));
+  }
+};
+} // namespace fmt
 #endif // KUNGFU_LONGFIST_ENUM_H

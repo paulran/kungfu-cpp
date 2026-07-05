@@ -63,7 +63,7 @@ struct console_table {
     std::cout << table << std::endl;
   }
 
-  void add_row(const std::vector<std::variant<std::string, const char *, Table>> &cells) {
+  void add_row(const Table::Row_t &cells) {
     table.add_row(cells);
     rows_count++;
 

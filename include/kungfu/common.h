@@ -474,4 +474,14 @@ template <typename DataType> struct state {
 };
 } // namespace kungfu
 
+namespace fmt {
+template <typename T, size_t N> struct formatter<kungfu::array<T, N>> {
+  template <typename ParseContext> constexpr auto parse(ParseContext &ctx) const { return ctx.begin(); }
+
+  template <typename FormatContext> auto format(const kungfu::array<T, N> &v, FormatContext &ctx) const {
+    return fmt::format_to(ctx.out(), "{}", v.to_string());
+  }
+};
+} // namespace fmt
+
 #endif // KUNGFU_COMMON_H

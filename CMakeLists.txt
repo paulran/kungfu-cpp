@@ -28,6 +28,12 @@ set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
 set(JSON_Install OFF CACHE BOOL "" FORCE)
 add_subdirectory(3rdparty/nlohmann EXCLUDE_FROM_ALL)
 
+# fmt
+set(FMT_TEST OFF CACHE BOOL "" FORCE)
+set(FMT_INSTALL OFF CACHE BOOL "" FORCE)
+add_subdirectory(3rdparty/fmt EXCLUDE_FROM_ALL)
+set_target_properties(fmt PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # spdlog
 set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
 set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -53,16 +59,19 @@ target_link_libraries(sqlite_orm INTERFACE SQLite3)
 add_library(tomlplusplus INTERFACE)
 target_include_directories(tomlplusplus INTERFACE ${CMAKE_SOURCE_DIR}/3rdparty/tomlplusplus/include)
 
+# tabulate (header-only)
+add_library(tabulate INTERFACE)
+target_include_directories(tabulate INTERFACE ${CMAKE_SOURCE_DIR}/3rdparty/tabulate/include)
+
 # === Project libraries ===
 add_subdirectory(src)
 
 # === Examples ===
 add_subdirectory(examples)
 
+# === Apps ===
+add_subdirectory(apps)
+
 # === Tests ===
-if(BUILD_TESTS)
-    enable_testing()
-    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-    add_subdirectory(3rdparty/googletest EXCLUDE_FROM_ALL)
-    add_subdirectory(tests)
-endif()
+# Tests directory does not exist yet
+set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
