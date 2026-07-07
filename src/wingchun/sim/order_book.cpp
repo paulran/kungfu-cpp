@@ -287,10 +287,10 @@ std::vector<std::pair<std::vector<Order>, double>> OrderBook::gen_orders(const M
       orders.push_back({security_, Side::Sell, round_price(sell_price), 1});
     }
 
-    orders.insert(orders.end(), pad_book(*this, depth_bids(), buy_price, Side::Buy).begin(),
-                  pad_book(*this, depth_bids(), buy_price, Side::Buy).end());
-    orders.insert(orders.end(), pad_book(*this, depth_offers(), sell_price, Side::Sell).begin(),
-                  pad_book(*this, depth_offers(), sell_price, Side::Sell).end());
+    auto buy_pad = pad_book(*this, depth_bids(), buy_price, Side::Buy);
+    orders.insert(orders.end(), buy_pad.begin(), buy_pad.end());
+    auto sell_pad = pad_book(*this, depth_offers(), sell_price, Side::Sell);
+    orders.insert(orders.end(), sell_pad.begin(), sell_pad.end());
 
     result.emplace_back(std::move(orders), mid_price);
   }
