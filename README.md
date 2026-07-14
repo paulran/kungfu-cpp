@@ -21,7 +21,7 @@
 └────────────┘                                └────────────┘
 
 ┌────────────┐   Journal mmap    ┌────────────┐   Journal mmap    ┌────────────┐
-│ kf_md_sim  │──── Quote ───────►│kf_strategy │──── OrderInput ──►│ kf_td_sim  │
+│   kf_md    │──── Quote ───────►│kf_strategy │──── OrderInput ──►│   kf_td    │
 └────────────┘                   └────────────┘                   └────────────┘
                                        ▲                                │
                                        └─────── Order/Trade ────────────┘
@@ -33,17 +33,16 @@
 | 进程 | 说明 |
 |------|------|
 | `kf_master` | 系统协调器：进程注册、Channel 通道建立、NNG PUB/PULL |
-| `kf_md_sim` | SIM 行情源：随机漫步生成 Quote，写入公开 Journal |
-| `kf_td_sim` | SIM 交易所：读取 OrderInput，撮合后写回 Order/Trade |
+| `kf_md` | 行情源：生成或接收行情数据，写入公开 Journal |
+| `kf_td` | 交易执行：读取 OrderInput，执行交易后写回 Order/Trade |
 | `kf_strategy` | 策略进程：订阅行情、下单、接收回报 |
 
-辅助服务（已实现，多进程 SIM 不需要）：
+辅助服务：
 
 | 进程 | 说明 |
 |------|------|
 | `kf_ledger` | 聚合持仓/资产（多策略风控场景需要） |
 | `kf_cached` | 状态恢复服务 |
-| `kf_archive` | Journal 归档清理 |
 
 ---
 
@@ -86,6 +85,7 @@ Boost.Hana 编译期反射，结构体自动支持 Journal 序列化、JSON 转�
 ```
 kungfu-cpp/
 ├── 3rdparty/              # 第三方依赖
+│   ├── fmt/               # 格式化库
 │   ├── googletest/        # 测试框架
 │   ├── hana/              # Boost.Hana 编译期反射
 │   ├── nlohmann/          # JSON
@@ -94,47 +94,43 @@ kungfu-cpp/
 │   ├── spdlog/            # 日志
 │   ├── sqlite3/           # SQLite
 │   ├── sqlite_orm/        # ORM
+│   ├── tabulate/          # 表格输出
 │   └── tomlplusplus/      # TOML 配置
 ├── include/kungfu/        # 公共头文件
-│   ├── common/            # 配置、hash、mmap
+│   ├── common.h           # 配置、hash、mmap
 │   ├── longfist/          # 数据类型、枚举、序列化
-│   ├── service/           # Master/Ledger/Cached/Archive
 │   ├── wingchun/          # 策略引擎、Broker、Gateway
 │   └── yijinjing/         # Journal、Locator、Practice
-├── src/
-│   ├── common/            # 配置加载、hash、mmap 实现
+├── src/                   # 核心源码
 │   ├── yijinjing/         # Journal 系统、NNG socket、Practice
-│   ├── wingchun/          # 交易引擎核心
-│   │   ├── broker/        # BrokerVendor、BrokerClient
-│   │   ├── gateway/sim/   # SimMD、SimTD、MatchingEngine、main_md/td
-│   │   └── strategy/      # Runner、RuntimeContext、SimContext
-│   └── services/          # 独立服务进程
-│       ├── master/        # kf_master
-│       ├── ledger/        # kf_ledger (含 BookKeeper)
-│       ├── cached/        # kf_cached
-│       └── archive/       # kf_archive
-├── examples/
-│   ├── multi_process_strategy.cpp   # 多进程策略 (kf_strategy)
-│   └── sim_strategy_demo.cpp        # 单进程 SIM 演示 (kf_strategy_sim)
-├── tests/                 # 88 个测试用例
-├── kungfu.toml            # 配置文件
+│   └── wingchun/          # 交易引擎核心
+│       ├── broker/        # BrokerVendor、BrokerClient
+│       ├── gateway/sim/   # SimMD、SimTD、MatchingEngine
+│       └── strategy/      # Runner、RuntimeContext、SimContext
+├── apps/                  # 应用程序入口
+│   ├── master.cpp         # kf_master
+│   ├── md.cpp             # kf_md
+│   ├── td.cpp             # kf_td
+│   ├── strategy.cpp       # kf_strategy
+│   ├── ledger.cpp         # kf_ledger
+│   ├── cached.cpp         # kf_cached
+│   └── strategies/        # 策略实现
+├── examples/              # 示例代码
+│   ├── producer.cpp       # Journal 生产者示例
+│   ├── consumer.cpp       # Journal 消费者示例
+│   ├── multi_process_strategy.cpp   # 多进程策略示例
+│   ├── sim_strategy_demo.cpp        # 单进程 SIM 演示
+│   ├── api_gateway_demo.cpp         # API Gateway 演示
+│   └── nng_http_client.cpp          # NNG HTTP 客户端示例
+├── cmake/                 # CMake 配置
+├── config/                # 配置文件
+│   └── supervisord.conf   # supervisord 配置
 └── CMakeLists.txt
 ```
 
 ---
 
 ## 编译
-* 原始依赖库版本
-"fmt/8.1.1" 更新到12.2.0,
-"nlohmann_json/3.11.2",
-"nng/1.5.2" 更新到 https://github.com/nanomsg/nng/tree/v1.12.0
-"rxcpp/4.1.1",
-"sqlite3/3.39.2" 更新到 3.38.2
-"sqlite_orm/1.7.1" 更新到 v1.9.1
-"spdlog/1.10.0" 更新到 1.17.0,
-"tabulate/1.4",
-"boost/?",
-"hana/?"
 
 ```bash
 # 前置要求: CMake 3.20+, C++20 编译器 (MSVC 2022 / GCC 11+ / Clang 14+)
@@ -143,135 +139,109 @@ mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release
 
-# 单独编译kf_master
-cmake -DBUILD_TESTS=OFF .. && make kf_master -j4
-
-# 运行测试 (88 个)
-ctest --build-config Release
+# 单独编译特定目标
+make kf_master -j4
+make kf_md -j4
+make kf_td -j4
+make kf_strategy -j4
 ```
 
 ### 编译产物
 
 | 目标 | 路径 | 说明 |
 |------|------|------|
-| `kf_master` | `src/services/master/Release/` | Master 协调进程 |
-| `kf_md_sim` | `src/wingchun/Release/` | SIM 行情进程 |
-| `kf_td_sim` | `src/wingchun/Release/` | SIM 交易进程 |
-| `kf_strategy` | `examples/Release/` | 多进程策略示例 |
-| `kf_strategy_sim` | `examples/Release/` | 单进程 SIM 演示 |
-| `kf_ledger` | `src/services/ledger/Release/` | 账本服务 |
-| `kf_cached` | `src/services/cached/Release/` | 缓存服务 |
-| `kf_archive` | `src/services/archive/Release/` | 归档服务 |
+| `kf_master` | `apps/` | Master 协调进程 |
+| `kf_md` | `apps/` | 行情进程 |
+| `kf_td` | `apps/` | 交易进程 |
+| `kf_strategy` | `apps/` | 策略进程 |
+| `kf_ledger` | `apps/` | 账本服务 |
+| `kf_cached` | `apps/` | 缓存服务 |
 
 ---
 
 ## 运行多进程 SIM
 
-### 配置文件 (kungfu.toml)
+### 使用 supervisord 启动
 
-```toml
-[system]
-home = "/path/to/kungfu/home"
-log_level = "info"
-low_latency = false
-page_size = 1048576
-```
-
-### 启动顺序
+项目使用 supervisord 统一管理所有进程：
 
 ```bash
-# 终端1: Master (必须首先启动)
-./kf_master kungfu.toml
+# 启动所有进程
+supervisord -c config/supervisord.conf
 
-# 终端2: SIM 行情
-./kf_md_sim kungfu.toml
+# 查看进程状态
+supervisorctl -c config/supervisord.conf status
 
-# 终端3: SIM 交易
-./kf_td_sim kungfu.toml
+# 停止所有进程
+supervisorctl -c config/supervisord.conf stop all
 
-# 终端4: 策略
-./kf_strategy kungfu.toml
+# 重启指定进程
+supervisorctl -c config/supervisord.conf restart kf_strategy
 ```
 
-### 预期输出
+### supervisord 配置
 
-**Master:**
-```
-Master: PUB bound to ipc:///kungfu/system/master/master/live/pub
-Master: PULL bound to ipc:///kungfu/system/master/master/live/pull
-Master: registered app uid=3243096914 name=sim/sim pid=...
-Master: registered app uid=2057459272 name=sim/sim pid=...
-Master: registered app uid=2249264571 name=default/demo pid=...
-Master: published channel source=2249264571 dest=2057459272
-```
+[config/supervisord.conf](./config/supervisord.conf) 定义了以下进程：
 
-**Strategy:**
-```
-[Strategy] pre_start: subscribed 600000@SSE, waiting for quotes...
-[Strategy] on_quote #1: 600000 last=10.0178 bid=10.0078 ask=10.0278
-[Strategy] placed BUY order: id=1 price=10.0256 vol=100
-[Strategy] on_order: id=1 status=1 traded=0/100
-[Strategy] on_trade: id=1 price=9.9640 vol=100
-[Strategy] position: vol=100 avg_price=9.9640
-[Strategy] on_order: id=1 status=5 traded=0/0
-```
+| 进程 | 命令 | 优先级 | 说明 |
+|------|------|--------|------|
+| `kf_master` | `kf_master` | 10 | Master 协调进程 |
+| `kf_cached` | `kf_cached` | 15 | 状态恢复服务 |
+| `kf_ledger` | `kf_ledger` | 15 | 账本服务 |
+| `kf_md_sim` | `kf_md --group sim --name sim` | 20 | SIM 行情进程 |
+| `kf_td_sim` | `kf_td --group sim --name sim --source sim` | 20 | SIM 交易进程 |
+| `kf_strategy` | `kf_strategy --group sim --name sim` | 30 | 策略进程 |
 
-**TD_sim:**
-```
-TraderVendor: joined reader for source_uid=2249264571 dest=2057459272
-TraderVendor: received OrderInput id=1 600000 @ SSE
-```
+日志文件位于 `~/.kungfu-cpp/log/` 目录下。
 
 ---
 
-## 单进程 SIM 演示
+## 策略开发
 
-不需要 Master/MD/TD 进程，所有组件在一个进程内直接调用：
-
-```bash
-./kf_strategy_sim kungfu.toml
-```
-
-输出包含完整交易循环：开仓 → 持仓跟踪 → 平仓 → 实现盈亏。
-
----
-
-## 策略开发示例
+策略示例参考 [apps/strategies/strategy101.h](./apps/strategies/strategy101.h)。
 
 ```cpp
+#include <kungfu/wingchun/strategy/context.h>
 #include <kungfu/wingchun/strategy/strategy.h>
-#include <kungfu/wingchun/strategy/runner.h>
-#include <kungfu/wingchun/strategy/runtime_context.h>
 
+using namespace kungfu::longfist::enums;
+using namespace kungfu::longfist::types;
 using namespace kungfu::wingchun::strategy;
-using namespace kungfu::longfist;
 
 class MyStrategy : public Strategy {
 public:
-    void pre_start(Context& ctx) override {
-        ctx.add_md("sim", "sim");
-        ctx.add_account("sim", "sim");
-        ctx.subscribe("SSE", "600000");
+    void pre_start(Context_ptr &context) override {
+        context->add_account("sim", "sim");
+        context->subscribe("sim", {"600000"}, {"SSE"});
     }
 
-    void on_quote(Context& ctx, const types::Quote& quote) override {
+    void on_quote(Context_ptr &context, const Quote &quote, const location_ptr &location) override {
         if (!ordered_ && quote.ask_price_0 > 0) {
-            ctx.insert_order("600000", "SSE", quote.ask_price_0, 100,
-                           enums::Side::Buy, enums::Offset::Open,
-                           enums::PriceType::Limit);
+            context->insert_order("600000", "SSE", quote.ask_price_0, 100,
+                                 PriceType::Limit, Side::Buy, Offset::Open);
             ordered_ = true;
         }
     }
 
-    void on_trade(Context& ctx, const types::Trade& trade) override {
-        auto pos = ctx.get_position("600000", "SSE", enums::Direction::Long);
-        if (pos) { /* position tracking */ }
+    void on_trade(Context_ptr &context, const Trade &trade, const location_ptr &location) override {
+        // Handle trade
     }
 
 private:
     bool ordered_ = false;
 };
 ```
+
+### 策略生命周期
+
+| 方法 | 调用时机 |
+|------|----------|
+| `pre_start` | 策略启动前，用于初始化和订阅 |
+| `post_start` | 策略启动后，所有组件已就绪 |
+| `on_quote` | 收到行情数据时 |
+| `on_order` | 收到订单状态更新时 |
+| `on_trade` | 收到成交回报时 |
+| `on_broker_state_change` | Broker 状态变化时 |
 
 ---
 
@@ -281,38 +251,19 @@ private:
 
 | 进程 | 写入 | Journal 文件路径 |
 |------|------|-----------------|
-| MD_sim | Quote (广播) | `journal/md/sim/sim/live/00000000.*.journal` |
+| MD | Quote (广播) | `journal/md/sim/sim/live/00000000.*.journal` |
 | Strategy | OrderInput (定向写给 TD) | `journal/strategy/default/demo/live/{td_uid_hex}.*.journal` |
-| TD_sim | Order/Trade (广播) | `journal/td/sim/sim/live/00000000.*.journal` |
+| TD | Order/Trade (广播) | `journal/td/sim/sim/live/00000000.*.journal` |
 
 ### 通道建立协议
 
 1. Master 启动，bind NNG PUB + PULL
-2. MD_sim 注册 → Master 记录
-3. TD_sim 注册 → Master 记录
+2. MD 注册 → Master 记录
+3. TD 注册 → Master 记录
 4. Strategy 注册 → `add_md("sim","sim")` → `request_write_to(md_uid)` + `request_read_from(md_loc, 0)` → Reader join MD 公开 journal
 5. Strategy → `add_account("sim","sim")` → `request_write_to(td_uid)` → Master 发布 `Channel(strat_uid, td_uid)` via NNG PUB
-6. TD_sim 收到 Channel → `reader_.join(strategy_loc, home_uid())` → 开始读取策略写给它的 OrderInput
+6. TD 收到 Channel → `reader_.join(strategy_loc, home_uid())` → 开始读取策略写给它的 OrderInput
 7. Strategy → `request_read_from(td_loc, 0)` → Reader join TD 公开 journal → 收到 Order/Trade
-
----
-
-## 测试
-
-```bash
-ctest --build-config Release          # 全部 88 个测试
-ctest --build-config Release -R E2E   # E2E 交易测试
-ctest --build-config Release -R Journal  # Journal 读写测试
-```
-
-测试覆盖：
-- Journal mmap 读写、Page 滚动
-- FrameHeader 序列化/反序列化
-- Locator 路径生成、UID hash
-- MatchingEngine 撮合逻辑（全额/部分成交）
-- BookKeeper 持仓计算、PnL 更新
-- Strategy/Context 集成
-- E2E 交易流程（Quote → Order → Trade → Position）
 
 ---
 
@@ -328,14 +279,13 @@ ctest --build-config Release -R Journal  # Journal 读写测试
 | Phase 2 | Master (注册/Channel/NNG 协调) | Done |
 | Phase 2 | Ledger (BookKeeper/持仓/PnL) | Done |
 | Phase 2 | Cached (状态恢复) | Done |
-| Phase 2 | Archive (Journal 清理) | Done |
 | Phase 3 | BrokerVendor/Service 抽象 | Done |
 | Phase 3 | SimMD (随机漫步行情生成) | Done |
 | Phase 3 | SimTD + MatchingEngine (限价撮合) | Done |
 | Phase 3 | Strategy Runner + RuntimeContext | Done |
 | Phase 3 | 多进程 SIM (Master/MD/TD/Strategy) | Done |
 | Phase 4 | 真实交易所扩展 (XTP/CTP) | Not started |
-| Phase 4 | API Gateway (REST/WebSocket) | Not started |
+| Phase 4 | API Gateway (REST/WebSocket) | In progress |
 | Phase 5 | Qt UI | Not started |
 
 ---
