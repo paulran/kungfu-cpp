@@ -3,6 +3,9 @@ build-linux/
 .vs/
 .vscode/
 *.user
+*.out
+*.so
+*.dll
 CMakeSettings.json
 out/
 
