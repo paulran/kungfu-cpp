@@ -64,7 +64,7 @@ main()
 
 ## 1. 命令行参数解析
 
-**文件**: [master.cpp](file:///home/paulran/workspace/repos/rewrite-kungfu/kungfu-cpp/apps/master.cpp#L33-L51)
+**文件**: [master.cpp](../apps/master.cpp#L33-L51)
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
@@ -196,7 +196,7 @@ get_writer(location::PUBLIC)->mark(start_time_, SessionStart::tag);
 
 ### 4.1 session_builder 详细说明
 
-**文件**: [session.h](file:///home/paulran/workspace/repos/rewrite-kungfu/kungfu-cpp/include/kungfu/yijinjing/index/session.h#L38-L56)、[session.cpp](../src/yijinjing/index/session.cpp#L57-L114)
+**文件**: [session.h](../include/kungfu/yijinjing/index/session.h#L38-L56)、[session.cpp](../src/yijinjing/index/session.cpp#L57-L114)
 
 `session_builder` 继承自 `session_finder`，负责管理系统中所有应用的 session 生命周期：
 
@@ -435,7 +435,7 @@ void hero::setup() {
 
 #### 5.1.1 io_device::setup()
 
-**文件**: [io.h](file:///home/paulran/workspace/repos/rewrite-kungfu/kungfu-cpp/include/kungfu/yijinjing/io.h#L24-L27)
+**文件**: [io.h](../include/kungfu/yijinjing/io.h#L24-L27)
 
 ```cpp
 void setup() override {

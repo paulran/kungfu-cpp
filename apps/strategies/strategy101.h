@@ -1,16 +1,20 @@
-// #include <kungfu/wingchun/extension.h>
+#pragma once
+
 #include <kungfu/wingchun/strategy/context.h>
 #include <kungfu/wingchun/strategy/runner.h>
 #include <kungfu/wingchun/strategy/runtime.h>
 #include <kungfu/wingchun/strategy/strategy.h>
 #include <kungfu/yijinjing/journal/assemble.h>
 
+using namespace kungfu;
 using namespace kungfu::longfist::enums;
 using namespace kungfu::longfist::types;
 using namespace kungfu::wingchun::strategy;
 using namespace kungfu::yijinjing::data;
+
 int i = 0;
-// KUNGFU_MAIN_STRATEGY(KungfuStrategy101) {
+
+
 class KungfuStrategy101 : public Strategy {
 public:
   KungfuStrategy101() = default;
@@ -82,9 +86,10 @@ public:
     //    }
   }
 
-  void on_quote(Context_ptr &context, const Quote &quote, const location_ptr &location) override {
+  void on_quote(Context_ptr &context, const longfist::types::Quote &quote,
+                const kungfu::yijinjing::data::location_ptr &location) override {
     SPDLOG_INFO("on quote: {} i {} location->uid {}", quote.last_price, i, location->location_uid);
-    // i++;
+    i++;
     // if (i == 5) {
     //   std::shared_ptr<kungfu::yijinjing::journal::assemble> p_assemble =
     //       std::make_shared<kungfu::yijinjing::journal::assemble>(std::vector<locator_ptr>{});
@@ -100,32 +105,49 @@ public:
     //     SPDLOG_INFO("f source {} dest {} data {}", f->source(), f->dest(), f->data_as_string());
     //   }
     // }
+    if (i % 10 == 0) {
+      context->insert_order("600000", "SSE", "sim", "sim", quote.last_price, 100, PriceType::Limit, Side::Buy, Offset::Open);
+    }
   }
 
-  void on_broker_state_change(Context_ptr &context, const BrokerStateUpdate &broker_state_update,
-                              const location_ptr &location) override {
+  void on_broker_state_change(Context_ptr &context,
+                              const longfist::types::BrokerStateUpdate &broker_state_update,
+                              const kungfu::yijinjing::data::location_ptr &location) override {
     SPDLOG_INFO("on broker state changed: {}", broker_state_update.to_string());
   };
 
-  void on_tree(Context_ptr &context, const Tree &tree, const location_ptr &location) override {
+  void on_tree(Context_ptr &context, const longfist::types::Tree &tree,
+               const kungfu::yijinjing::data::location_ptr &location) override {
     SPDLOG_INFO("on tree: {}", tree.to_string());
   }
 
-  void on_order(Context_ptr &context, const Order &order, const location_ptr &location) override {
-    static int count = 0;
-    if (count++ % 1000 == 0) {
-      SPDLOG_INFO("Order: {}", order.to_string());
+  void on_order(Context_ptr &context, const longfist::types::Order &order,
+                const kungfu::yijinjing::data::location_ptr &location) override {
+    SPDLOG_INFO("on order: {}", order.to_string());
+  }
+
+  void on_position_sync_reset(Context_ptr &context, const kungfu::wingchun::book::Book &old_book,
+                              const kungfu::wingchun::book::Book &new_book) override {
+    SPDLOG_INFO("on position sync reset, long_positions.size(): {}, short_positions.size(): {}", 
+      new_book.long_positions.size(), new_book.short_positions.size());
+    for (const auto &position_pair : new_book.long_positions) {
+      auto &position = position_pair.second;
+      SPDLOG_INFO("Position: {}", position.to_string());
+    }
+    for (const auto &position_pair : new_book.short_positions) {
+      auto &position = position_pair.second;
+      SPDLOG_INFO("Position: {}", position.to_string());
     }
   }
-};
 
-// int main(int argc, char **argv) {
-//   SPDLOG_INFO("runner1 add strategy1");
-//   Runner runner(std::make_shared<locator>(), "CppStrategy", "demo01exe", mode::LIVE, false);
-//   SPDLOG_INFO("runner");
-//   runner.add_strategy(std::make_shared<KungfuStrategy101>());
-//   SPDLOG_INFO("add_strategy");
-//   SPDLOG_INFO("runner1 add strategy1");
-//   runner.run();
-//   return 0;
-// }
+  void on_asset_sync_reset(Context_ptr &context, const kungfu::longfist::types::Asset &old_asset,
+                           const kungfu::longfist::types::Asset &new_asset) override {
+    SPDLOG_INFO("on asset sync reset: {}", new_asset.to_string());
+  }
+
+  void on_asset_margin_sync_reset(Context_ptr &context,
+                                  const kungfu::longfist::types::AssetMargin &old_asset_margin,
+                                  const kungfu::longfist::types::AssetMargin &new_asset_margin) override {
+    SPDLOG_INFO("on asset margin sync reset: {}", new_asset_margin.to_string());
+  }
+};

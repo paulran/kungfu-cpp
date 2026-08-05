@@ -66,12 +66,11 @@ target_include_directories(tabulate INTERFACE ${CMAKE_SOURCE_DIR}/3rdparty/tabul
 # === Project libraries ===
 add_subdirectory(src)
 
-# === Examples ===
-add_subdirectory(examples)
-
 # === Apps ===
 add_subdirectory(apps)
 
 # === Tests ===
-# Tests directory does not exist yet
-set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
+if(BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

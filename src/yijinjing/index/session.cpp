@@ -42,7 +42,7 @@ int64_t session_finder::find_last_active_time(const data::location_ptr &source_l
 
 [[maybe_unused]] SessionVector session_finder::find_sessions(int64_t from, int64_t to) {
   auto bt = &Session::begin_time;
-  auto range = where(greater_or_equal(bt, from) and lesser_or_equal(bt, to));
+  auto range = where(greater_or_equal(bt, from) and less_or_equal(bt, to));
   return session_storage_->get_all<Session>(range, order_by(bt));
 }
 
@@ -50,7 +50,7 @@ int64_t session_finder::find_last_active_time(const data::location_ptr &source_l
                                                                  int64_t to) {
   auto bt = &Session::begin_time;
   auto match_uid = eq(&Session::location_uid, source_location->uid);
-  auto range = where(match_uid and greater_or_equal(bt, from) and lesser_or_equal(bt, to));
+  auto range = where(match_uid and greater_or_equal(bt, from) and less_or_equal(bt, to));
   return session_storage_->get_all<Session>(range, order_by(bt));
 }
 

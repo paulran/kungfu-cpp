@@ -84,7 +84,7 @@ template <typename DataType> struct time_spec<DataType, std::enable_if_t<DataTyp
     [[maybe_unused]] auto accessor = boost::hana::second(*just);
     auto ts = member_pointer_trait<decltype(accessor)>().pointer();
     return storage->get_all<DataType>(sqlite_orm::where(
-        sqlite_orm::and_(sqlite_orm::greater_or_equal(ts, from), sqlite_orm::lesser_or_equal(ts, to))));
+        sqlite_orm::and_(sqlite_orm::greater_or_equal(ts, from), sqlite_orm::less_or_equal(ts, to))));
   };
 };
 

@@ -115,13 +115,9 @@ kungfu-cpp/
 │   ├── ledger.cpp         # kf_ledger
 │   ├── cached.cpp         # kf_cached
 │   └── strategies/        # 策略实现
-├── examples/              # 示例代码
+├── tests/                 # 测试代码
 │   ├── producer.cpp       # Journal 生产者示例
 │   ├── consumer.cpp       # Journal 消费者示例
-│   ├── multi_process_strategy.cpp   # 多进程策略示例
-│   ├── sim_strategy_demo.cpp        # 单进程 SIM 演示
-│   ├── api_gateway_demo.cpp         # API Gateway 演示
-│   └── nng_http_client.cpp          # NNG HTTP 客户端示例
 ├── cmake/                 # CMake 配置
 ├── config/                # 配置文件
 │   └── supervisord.conf   # supervisord 配置
