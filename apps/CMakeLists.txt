@@ -15,3 +15,9 @@ target_link_libraries(kf_ledger PRIVATE ${LIBKUNGFU_NAME} spdlog::spdlog)
 
 add_executable(kf_td td.cpp)
 target_link_libraries(kf_td PRIVATE ${LIBKUNGFU_NAME} spdlog::spdlog)
+
+add_executable(kf_api api.cpp)
+target_link_libraries(kf_api PRIVATE ${LIBKUNGFU_NAME} spdlog::spdlog)
+if(WIN32)
+    target_link_libraries(kf_api PRIVATE ws2_32)
+endif()

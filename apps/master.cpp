@@ -148,9 +148,22 @@ public:
     auto uname = uname_of(register_data);
     SPDLOG_INFO("app {} {} checking in", register_data.pid, uname);
 
-    if (apprentices_.find(register_data.pid) != apprentices_.end()) {
-      return;
+    // Handle PID reuse: if this PID was previously registered for a different location
+    // and the old process is dead, clean up the stale entry before proceeding.
+    auto pid_it = apprentices_.find(register_data.pid);
+    if (pid_it != apprentices_.end()) {
+      const auto &old = pid_it->second;
+      if (old.register_data.location_uid == register_data.location_uid) {
+        // Same PID, same location — already registered, nothing to do
+        return;
+      }
+      // Same PID but different location — likely PID reuse by OS
+      SPDLOG_WARN("pid {} reuse detected: was {} -> now {}, cleaning up stale entry",
+                  register_data.pid, old.uname, uname);
+      deregister_app(event->gen_time(), old.register_data.location_uid);
+      apprentices_.erase(pid_it);
     }
+
     if (!process_alive(register_data.pid)) {
       SPDLOG_ERROR("app [{}] {} checkin failed: process not running", register_data.pid, uname);
       deregister_app(event->gen_time(), register_data.location_uid);
@@ -246,19 +259,55 @@ private:
   // periodic task: deregister apprentices whose OS process has gone away
   void health_check() {
     auto now = time::now_in_nano();
-    std::vector<int32_t> stale;
+
+    // Phase 1: check all tracked PIDs in apprentices_
+    std::vector<int32_t> stale_pids;
     for (const auto &[pid, app] : apprentices_) {
       if (!process_alive(pid)) {
         SPDLOG_WARN("cleaning up stale app {} with pid {}", app.uname, pid);
-        stale.push_back(pid);
+        stale_pids.push_back(pid);
       }
     }
-    for (int32_t pid : stale) {
+    for (int32_t pid : stale_pids) {
       auto it = apprentices_.find(pid);
       if (it != apprentices_.end()) {
         deregister_app(now, it->second.register_data.location_uid);
         apprentices_.erase(it);
       }
+    }
+
+    // Phase 2: scan registry_ for live locations whose process is dead but
+    // were not caught by Phase 1 (e.g. location registered without going
+    // through on_register, or PID entry was already erased). This ensures
+    // stale locations — including system/service/api/* — are cleaned up so
+    // restarted services can re-register immediately.
+    std::vector<uint32_t> stale_locations;
+    for (const auto &[uid, reg] : registry_) {
+      // skip master itself
+      if (uid == get_home_uid()) {
+        continue;
+      }
+      // skip if PID is tracked and alive (already checked in Phase 1)
+      auto pid_it = apprentices_.find(reg.pid);
+      if (pid_it != apprentices_.end() && process_alive(reg.pid)) {
+        continue;
+      }
+      // skip node processes (managed separately)
+      if (reg.category == category::SYSTEM && reg.group == "node") {
+        continue;
+      }
+      if (!process_alive(reg.pid)) {
+        SPDLOG_WARN("cleaning up stale location {} uid {:08x} pid {}", uname_of(reg), uid, reg.pid);
+        stale_locations.push_back(uid);
+      }
+    }
+    for (uint32_t uid : stale_locations) {
+      // erase from apprentices_ if the dead PID is still there
+      auto reg_it = registry_.find(uid);
+      if (reg_it != registry_.end()) {
+        apprentices_.erase(reg_it->second.pid);
+      }
+      deregister_app(now, uid);
     }
   }
 
