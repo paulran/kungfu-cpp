@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#include <filesystem>
+
 #include <kungfu/common.h>
 #include <kungfu/yijinjing/journal/page.h>
 #include <kungfu/yijinjing/util/os.h>
@@ -28,6 +30,18 @@ page_ptr page::load(const data::location_ptr &location, uint32_t dest_id, uint32
                     bool lazy) {
   uint32_t page_size = find_page_size(location, dest_id);
   std::string path = get_page_path(location, dest_id, page_id);
+
+  // read-only (lazy) loads must not touch a 0-byte or undersized file: mmap of such
+  // a file succeeds but any access raises SIGBUS. writers stretch the file themselves.
+  bool writable = is_writing || !lazy;
+  if (!writable) {
+    std::error_code ec;
+    auto file_size = std::filesystem::file_size(path, ec);
+    if (ec || file_size < sizeof(page_header)) {
+      throw journal_error(fmt::format("page file {} not ready (size {})", path, ec ? 0 : file_size));
+    }
+  }
+
   uintptr_t address = os::load_mmap_buffer(path, page_size, is_writing, lazy);
 
   // SPDLOG_TRACE("load page {}/{:08x}.{}.journal", location->uname, dest_id, page_id);
@@ -78,8 +92,12 @@ uint32_t page::find_page_id(const data::location_ptr &location, uint32_t dest_id
     return page_ids.front();
   }
   for (int i = static_cast<int>(page_ids.size()) - 1; i >= 0; i--) {
-    if (page::load(location, dest_id, page_ids[i], false, true)->begin_time() < time) {
-      return page_ids[i];
+    try {
+      if (page::load(location, dest_id, page_ids[i], false, true)->begin_time() < time) {
+        return page_ids[i];
+      }
+    } catch (const journal_error &e) {
+      SPDLOG_WARN("skip unreadable page {:08x}.{}: {}", dest_id, page_ids[i], e.what());
     }
   }
   return page_ids.front();

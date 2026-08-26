@@ -54,7 +54,7 @@ uintptr_t load_mmap_buffer(const std::string &path, size_t size, bool is_writing
   CloseHandle(dumpFileDescriptor);
 #else
   bool master = is_writing || !lazy;
-  int fd = open(path.c_str(), (master ? O_RDWR : O_RDONLY) | O_CREAT, (mode_t)0600);
+  int fd = open(path.c_str(), (master ? O_RDWR : O_RDONLY) | (master ? O_CREAT : 0), (mode_t)0600);
   if (fd < 0) {
     throw journal_error("failed to open file for page " + path);
   }

@@ -143,6 +143,10 @@ void Ledger::update_order_stat(const event_ptr &event, const Trade &data) {
 
 void Ledger::update_account_book(int64_t trigger_time, uint32_t account_uid) {
   refresh_account_book(trigger_time, account_uid);
+  if (!has_writer(account_uid)) {
+    SPDLOG_WARN("no writer for {}, skipping account book update", get_location_uname(account_uid));
+    return;
+  }
   auto writer = get_writer(account_uid);
   auto book = bookkeeper_.get_book(account_uid);
   auto &asset = book->asset;
@@ -196,6 +200,10 @@ void Ledger::rebuild_positions(int64_t trigger_time, uint32_t strategy_uid) {
 }
 
 void Ledger::write_broker_state(int64_t trigger_time, uint32_t source_id) {
+  if (!has_writer(source_id)) {
+    SPDLOG_WARN("no writer for {}, skipping broker state write", get_location_uname(source_id));
+    return;
+  }
   auto writer = get_writer(source_id);
   for (const auto &pair : broker_states_) {
     auto &broker_state = pair.second;
@@ -214,6 +222,10 @@ void Ledger::write_broker_state_to_public() {
 }
 
 void Ledger::write_book_reset(int64_t trigger_time, uint32_t book_uid) {
+  if (!has_writer(book_uid)) {
+    SPDLOG_WARN("no writer for {}, skipping book reset", get_location_uname(book_uid));
+    return;
+  }
   auto writer = get_writer(book_uid);
   writer->open_data<CacheReset>(trigger_time).msg_type = Position::tag;
   writer->close_data();
@@ -252,6 +264,9 @@ void Ledger::write_strategy_data(int64_t trigger_time, uint32_t strategy_uid) {
 }
 
 void Ledger::write_positions(int64_t trigger_time, uint32_t dest, book::PositionMap &positions) {
+  if (!has_writer(dest)) {
+    return;
+  }
   auto writer = get_writer(dest);
   for (const auto &pair : positions) {
     if (pair.second.volume > 0) {
