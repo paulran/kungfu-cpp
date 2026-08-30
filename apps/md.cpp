@@ -1,7 +1,8 @@
 #include <kungfu/common.h>
 #include <kungfu/longfist/longfist.h>
 #include <kungfu/wingchun/broker/marketdata.h>
-#include <kungfu/wingchun/sim/market_data_sim.h>
+#include <kungfu/wingchun/extension.h>
+#include <kungfu/wingchun/plugin.h>
 #include <kungfu/yijinjing/io.h>
 #include <kungfu/yijinjing/log.h>
 
@@ -15,15 +16,29 @@ using namespace kungfu::yijinjing::data;
 using namespace kungfu::yijinjing::practice;
 using namespace kungfu::wingchun;
 using namespace kungfu::wingchun::broker;
-using namespace kungfu::wingchun::sim;
 
 class MarketDataFactory {
 public:
     static MarketData_ptr create(const std::string &type, MarketDataVendor &vendor) {
-        if (type == "sim") {
-            return std::make_shared<MarketDataSim>(vendor);
+        // Loads the extension library kf_<type>.dll / libkf_<type>.so (e.g.
+        // kf_sim) and keeps it loaded for the whole process lifetime; the
+        // service object is owned by the returned shared_ptr.
+        auto library = plugin::Library::load("kf_" + type);
+        if (!library) {
+            return nullptr;
         }
-        return nullptr;
+        auto create_market_data = library->symbol_as<extension::CreateMarketDataFn>(
+            extension::kMarketDataFactorySymbol);
+        auto destroy_market_data = library->symbol_as<extension::DestroyMarketDataFn>(
+            extension::kDestroyMarketDataSymbol);
+        if (!create_market_data || !destroy_market_data) {
+            SPDLOG_ERROR("market data factory symbols not found in extension kf_{} (expected {} / {})",
+                         type, extension::kMarketDataFactorySymbol, extension::kDestroyMarketDataSymbol);
+            return nullptr;
+        }
+        // The destroy function becomes the shared_ptr deleter so the object
+        // is destroyed in the extension module that allocated it.
+        return MarketData_ptr(create_market_data(&vendor), destroy_market_data);
     }
 };
 

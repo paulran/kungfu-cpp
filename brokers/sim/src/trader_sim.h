@@ -3,7 +3,7 @@
 #include <kungfu/longfist/enums.h>
 #include <kungfu/longfist/types.h>
 #include <kungfu/wingchun/broker/trader.h>
-#include <kungfu/wingchun/sim/match_mode.h>
+#include "match_mode.h"
 #include <nlohmann/json.hpp>
 #include <unordered_map>
 

@@ -1,7 +1,8 @@
 #include <kungfu/common.h>
 #include <kungfu/longfist/longfist.h>
 #include <kungfu/wingchun/broker/trader.h>
-#include <kungfu/wingchun/sim/trader_sim.h>
+#include <kungfu/wingchun/extension.h>
+#include <kungfu/wingchun/plugin.h>
 #include <kungfu/yijinjing/io.h>
 #include <kungfu/yijinjing/log.h>
 
@@ -15,15 +16,29 @@ using namespace kungfu::yijinjing::data;
 using namespace kungfu::yijinjing::practice;
 using namespace kungfu::wingchun;
 using namespace kungfu::wingchun::broker;
-using namespace kungfu::wingchun::sim;
 
 class TraderFactory {
 public:
     static Trader_ptr create(const std::string &type, TraderVendor &vendor) {
-        if (type == "sim") {
-            return std::make_shared<TraderSim>(vendor);
+        // Loads the extension library kf_<type>.dll / libkf_<type>.so (e.g.
+        // kf_sim) and keeps it loaded for the whole process lifetime; the
+        // service object is owned by the returned shared_ptr.
+        auto library = plugin::Library::load("kf_" + type);
+        if (!library) {
+            return nullptr;
         }
-        return nullptr;
+        auto create_trader =
+            library->symbol_as<extension::CreateTraderFn>(extension::kTraderFactorySymbol);
+        auto destroy_trader =
+            library->symbol_as<extension::DestroyTraderFn>(extension::kDestroyTraderSymbol);
+        if (!create_trader || !destroy_trader) {
+            SPDLOG_ERROR("trader factory symbols not found in extension kf_{} (expected {} / {})",
+                         type, extension::kTraderFactorySymbol, extension::kDestroyTraderSymbol);
+            return nullptr;
+        }
+        // The destroy function becomes the shared_ptr deleter so the object
+        // is destroyed in the extension module that allocated it.
+        return Trader_ptr(create_trader(&vendor), destroy_trader);
     }
 };
 

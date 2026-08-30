@@ -1,4 +1,4 @@
-#include <kungfu/wingchun/sim/trader_sim.h>
+#include "trader_sim.h"
 #include <kungfu/wingchun/common.h>
 #include <kungfu/yijinjing/time.h>
 #include <spdlog/spdlog.h>
