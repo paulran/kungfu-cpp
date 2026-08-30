@@ -117,6 +117,8 @@ public:
 
   yijinjing::data::location_ptr get_ledger_home_location() const;
 
+  yijinjing::data::location_ptr get_api_home_location() const;
+
   yijinjing::data::location_ptr get_master_home_location() const;
 
   yijinjing::data::location_ptr get_master_cmd_location() const;
@@ -140,6 +142,7 @@ protected:
   const yijinjing::data::location_ptr master_cmd_location_;
   const yijinjing::data::location_ptr cached_home_location_;
   const yijinjing::data::location_ptr ledger_home_location_;
+  const yijinjing::data::location_ptr api_home_location_;
 
   static uint64_t make_source_dest_hash(uint32_t source_id, uint32_t dest_id);
 

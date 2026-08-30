@@ -128,6 +128,8 @@ void Runner::prepare(const event_ptr &event) {
 
   auto ledger_uid = ledger_home_location_->uid;
   if (not has_writer(ledger_uid)) {
+    SPDLOG_WARN("no writer for ledger {}, waiting for RequestWriteTo from master",
+                get_location_uname(ledger_uid));
     return;
   }
   auto writer = get_writer(ledger_uid);

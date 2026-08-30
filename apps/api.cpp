@@ -211,7 +211,9 @@ class ApiService : public apprentice {
 public:
   explicit ApiService(locator_ptr locator, mode m, std::string host, int port, bool low_latency = false)
       : apprentice(location::make_shared(m, category::SYSTEM, "service", "api", std::move(locator)), low_latency),
-        broker_client_(*this), bookkeeper_(*this, broker_client_, false), host_(std::move(host)), port_(port) {}
+        broker_client_(*this), bookkeeper_(*this, broker_client_, false), host_(std::move(host)), port_(port) {
+    broker_client_.enroll_system(get_ledger_home_location());
+  }
 
   ~ApiService() override { stop_server(); }
 

@@ -33,6 +33,7 @@ hero::hero(io_device_ptr io_device)
       master_cmd_location_(make_system_location("master", encode(io_device), io_device->get_locator())),
       cached_home_location_(make_system_location("service", "cached", io_device->get_locator())),
       ledger_home_location_(make_system_location("service", "ledger", io_device->get_locator())),
+      api_home_location_(make_system_location("service", "api", io_device->get_locator())),
       io_device_(std::move(io_device)), now_(0) {
 
   os::handle_os_signals(this);
@@ -48,6 +49,7 @@ hero::hero(io_device_ptr io_device)
   add_location(0, master_cmd_location_);
   add_location(0, cached_home_location_);
   add_location(0, ledger_home_location_);
+  add_location(0, api_home_location_);
   reader_ = io_device_->open_reader_to_subscribe();
   if (reader_) {
     // only replay/backtest keep the gen_time-based future-frame visibility cap
@@ -194,6 +196,8 @@ void hero::on_notify() {}
 void hero::on_exit() { SPDLOG_INFO("default on_exit"); }
 
 location_ptr hero::get_ledger_home_location() const { return ledger_home_location_; }
+
+location_ptr hero::get_api_home_location() const { return api_home_location_; }
 
 location_ptr hero::get_master_home_location() const { return master_home_location_; }
 

@@ -62,10 +62,13 @@ struct FromNowResumePolicy : public ResumePolicy {
  * Manage connections to brokers.
  */
 class Client {
+protected:
   typedef std::unordered_map<uint32_t, longfist::types::InstrumentKey> InstrumentKeyMap;
   typedef std::unordered_map<uint32_t, longfist::enums::BrokerState> BrokerStateMap;
   typedef std::unordered_map<std::string, yijinjing::data::location_ptr> ExchangeSourceMap;
   typedef std::unordered_map<uint32_t, yijinjing::data::location_ptr> InstrumentSourceMap;
+  typedef std::unordered_map<uint32_t, bool> EnrollmentMap;
+  typedef std::unordered_map<uint32_t, std::vector<longfist::types::CustomSubscribe>> CustomSubscribeMap;
 
 public:
   explicit Client(yijinjing::practice::apprentice &app);
@@ -124,12 +127,16 @@ public:
 
   [[nodiscard]] virtual bool should_connect_system(const yijinjing::data::location_ptr &system_location) const = 0;
 
+  void enroll_system(const yijinjing::data::location_ptr &system_location);
+
   [[nodiscard]] kungfu::yijinjing::data::location_ptr get_location(uint32_t uid) const {
     return app_.get_location(uid);
   }
 
 protected:
   yijinjing::practice::apprentice &app_;
+
+  EnrollmentMap enrolled_system_locations_ = {};
 
 private:
   BrokerStateMap broker_states_ = {};
@@ -201,9 +208,6 @@ public:
  * Only connects brokers that has been explicitly added. It supports subscribe_all for MD that has such ability.
  */
 class PassiveClient : public Client {
-  typedef std::unordered_map<uint32_t, bool> EnrollmentMap;
-  typedef std::unordered_map<uint32_t, std::vector<longfist::types::CustomSubscribe>> CustomSubscribeMap;
-
 public:
   explicit PassiveClient(yijinjing::practice::apprentice &app);
 

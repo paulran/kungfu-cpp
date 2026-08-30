@@ -142,6 +142,10 @@ void Client::sync(int64_t trigger_time, const yijinjing::data::location_ptr &td_
   return true;
 }
 
+void Client::enroll_system(const location_ptr &system_location) {
+  enrolled_system_locations_.emplace(system_location->uid, true);
+}
+
 void Client::on_start(const rx::connectable_observable<event_ptr> &events) {
   events | is(Register::tag) | $$(connect(event, event->data<Register>()));
   events | is(Band::tag) | $$(connect(event, event->data<Band>()));
@@ -169,6 +173,13 @@ void Client::connect(const event_ptr &event, const Register &register_data) {
     app_.request_write_to(app_.now(), app_location->uid);
     app_.request_read_from(app_.now(), app_location->uid, resume_time_point);
     app_.request_read_from_public(app_.now(), app_location->uid, resume_time_point);
+    SPDLOG_INFO("resume {} connection from {}", app_.get_location_uname(app_uid), time::strftime(resume_time_point));
+  }
+  if (app_location->category == category::SYSTEM and should_connect_system(app_location)) {
+    app_.request_write_to(app_.now(), app_uid);
+    app_.request_read_from(app_.now(), app_uid, resume_time_point);
+    app_.request_read_from_public(app_.now(), app_uid, resume_time_point);
+    app_.request_read_from_sync(app_.now(), app_uid, resume_time_point);
     SPDLOG_INFO("resume {} connection from {}", app_.get_location_uname(app_uid), time::strftime(resume_time_point));
   }
 }
@@ -243,7 +254,9 @@ bool AutoClient::should_connect_td(uint32_t td_location_uid) const { return true
 
 bool AutoClient::should_connect_strategy(const location_ptr &strategy_location) const { return true; }
 
-bool AutoClient::should_connect_system(const location_ptr &system_location) const { return false; }
+bool AutoClient::should_connect_system(const location_ptr &system_location) const {
+  return enrolled_system_locations_.find(system_location->uid) != enrolled_system_locations_.end();
+}
 
 SilentAutoClient::SilentAutoClient(practice::apprentice &app) : AutoClient(app) {}
 
@@ -394,5 +407,7 @@ bool PassiveClient::should_connect_td(uint32_t td_location_uid) const {
 
 bool PassiveClient::should_connect_strategy(const location_ptr &td_location) const { return false; }
 
-bool PassiveClient::should_connect_system(const location_ptr &system_location) const { return false; };
+bool PassiveClient::should_connect_system(const location_ptr &system_location) const {
+  return enrolled_system_locations_.find(system_location->uid) != enrolled_system_locations_.end();
+}
 } // namespace kungfu::wingchun::broker

@@ -20,8 +20,10 @@ using namespace kungfu::yijinjing::cache;
 
 namespace kungfu::wingchun::service {
 Ledger::Ledger(locator_ptr locator, mode m, bool low_latency)
-    : apprentice(location::make_shared(m, category::SYSTEM, "service", "ledger", std::move(locator)), low_latency),
-      broker_client_(*this), bookkeeper_(*this, broker_client_, true) {}
+    : apprentice(location::make_shared(m, category::SYSTEM, "service", "ledger", locator), low_latency),
+      broker_client_(*this), bookkeeper_(*this, broker_client_, true) {
+  broker_client_.enroll_system(get_api_home_location());
+}
 
 void Ledger::on_exit() {}
 

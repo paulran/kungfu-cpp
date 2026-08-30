@@ -25,6 +25,7 @@ namespace kungfu::wingchun::strategy {
 RuntimeContext::RuntimeContext(apprentice &app, const rx::connectable_observable<event_ptr> &events)
     : app_(app), events_(events), broker_client_(app_), bookkeeper_(app_, broker_client_), basketorder_engine_(app_) {
   log::copy_log_settings(app_.get_home(), app_.get_home()->name);
+  broker_client_.enroll_system(app_.get_ledger_home_location());
 }
 
 void RuntimeContext::on_start() {
