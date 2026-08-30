@@ -31,10 +31,20 @@ if (APPLE)
 endif ()
 
 if (MSVC)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP /utf-8 /permissive- /bigobj /W0 /Zc:__cplusplus")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP2 /utf-8 /permissive- /bigobj /W0 /Zc:__cplusplus")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /IGNORE:4199")
   set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} /IGNORE:4199")
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+  # kungfu/common.h guards the packed-struct macros with #ifdef _WINDOWS (the VS
+  # property-sheet macro), not _MSC_VER/_WIN32. CMake does not define _WINDOWS
+  # automatically, so without this the GCC __attribute__((packed)) branch is
+  # taken and MSVC rejects it. Define it to pick the __pragma(pack) branch.
+  add_compile_definitions(_WINDOWS)
+  # nng is built static (BUILD_SHARED_LIBS=OFF) but its compat nn.h declares
+  # the legacy nn_* functions as __declspec(dllimport) on Windows unless
+  # NNG_STATIC_LIB is defined, which produces __imp_ stubs the static nng.lib
+  # can't satisfy (LNK2019). Define it so nn.h uses plain extern linkage.
+  add_compile_definitions(NNG_STATIC_LIB)
   add_compile_definitions(HAVE_SNPRINTF)
   add_compile_definitions(_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING)
   set(COMPILER_OPTIMIZE_ON_OPTIONS "/O2")

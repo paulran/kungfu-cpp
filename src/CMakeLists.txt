@@ -6,6 +6,7 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/../include
     ${PROJECT_SOURCE_DIR}/../3rdparty/hana/include
     ${PROJECT_SOURCE_DIR}/../3rdparty/sqlite_orm/include
+    ${PROJECT_SOURCE_DIR}/../3rdparty/sqlite3
     ${PROJECT_SOURCE_DIR}/../3rdparty/rxcpp/Rx/v2/src
     ${PROJECT_SOURCE_DIR}/../3rdparty/spdlog/include
     ${PROJECT_SOURCE_DIR}/../3rdparty/fmt/include
