@@ -31,6 +31,8 @@
 #include <kungfu/yijinjing/practice/apprentice.h>
 #include <kungfu/yijinjing/time.h>
 
+#include <type_traits>
+
 #ifdef _WIN32
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT 0x0601
@@ -251,6 +253,11 @@ private:
   std::atomic<bool> stop_server_{false};
   std::thread accept_thread_;
 
+  /// order_id → session_id, for routing manual orders (client-issued, not strategy-owned).
+  /// TD writes Order/Trade acks back with dest = api home uid, which never matches a
+  /// subscribed strategy uid, so these need their own routing table.
+  std::unordered_map<uint64_t, uint32_t> manual_order_sessions_;
+
   // ---- session management ----
   std::mutex sessions_mutex_;
   std::unordered_map<uint32_t, ClientSession> sessions_; // id → session
@@ -448,6 +455,13 @@ private:
       md_subscribed_keys = std::move(it->second.md_subscribed_keys);
       subscribed_strategies = std::move(it->second.subscribed_strategies);
       sessions_.erase(it);
+      for (auto manual_it = manual_order_sessions_.begin(); manual_it != manual_order_sessions_.end();) {
+        if (manual_it->second == session_id) {
+          manual_it = manual_order_sessions_.erase(manual_it);
+        } else {
+          ++manual_it;
+        }
+      }
     }
 
     // Close the socket
@@ -558,7 +572,7 @@ private:
 
     try {
       if (method == "issue_order") {
-        response["data"] = handle_issue_order(data);
+        response["data"] = handle_issue_order(session_id, data);
       } else if (method == "cancel_order") {
         response["data"] = handle_cancel_order(data);
       } else if (method == "request_market_data") {
@@ -600,7 +614,7 @@ private:
 
   // ---- request handlers ----
 
-  nlohmann::json handle_issue_order(const nlohmann::json &data) {
+  nlohmann::json handle_issue_order(uint32_t session_id, const nlohmann::json &data) {
     auto account = resolve_location(data);
     if (!account) throw std::runtime_error("invalid account location");
     if (!is_location_live(account->uid) || !has_writer(account->uid))
@@ -630,6 +644,10 @@ private:
 
     writer->write_as(now(), input, get_home_uid(), account->uid);
     bookkeeper_.on_order_input(now(), get_home_uid(), account->uid, input);
+    {
+      std::lock_guard<std::mutex> lock(sessions_mutex_);
+      manual_order_sessions_[input.order_id] = session_id;
+    }
 
     auto volume = input.volume;
     auto side = static_cast<int>(input.side);
@@ -923,7 +941,23 @@ private:
     std::string name = data.value("name", "sim");
     std::string strategy_type = data.value("strategy", "kungfu_strategy_101");
     std::string arguments = data.value("args", "");
-    std::string exe_path = data.value("exe", "kf_strategy");
+    // Resolve kf_strategy next to the kf_api executable (same directory)
+    std::string exe_path;
+    {
+      char self_path[4096] = {0};
+#ifdef _WIN32
+      GetModuleFileNameA(NULL, self_path, sizeof(self_path));
+#else
+      ssize_t n = ::readlink("/proc/self/exe", self_path, sizeof(self_path) - 1);
+      if (n > 0) self_path[n] = '\0';
+#endif
+      std::filesystem::path p(self_path);
+#ifdef _WIN32
+      exe_path = (p.parent_path() / "kf_strategy.exe").string();
+#else
+      exe_path = (p.parent_path() / "kf_strategy").string();
+#endif
+    }
     bool low_latency = data.value("low_latency", false);
 
     // Check if a strategy with the same (mode, group, name) is already running
@@ -1170,10 +1204,23 @@ private:
   }
 
   /// Push Order/Trade only to clients that subscribed to the strategy (event->dest()).
+  /// Manual orders issued by clients via issue_order are routed by manual_order_sessions_
+  /// instead, since TD acks them with dest = api home uid, not a strategy uid.
   template <typename T> void push_strategy_event(const event_ptr &event) {
-    uint32_t strategy_uid = event->dest();
     std::string msg = build_binary_frame<T>(event);
     std::lock_guard<std::mutex> lock(sessions_mutex_);
+    if constexpr (std::is_same_v<T, Order> || std::is_same_v<T, Trade>) {
+      auto manual_it = manual_order_sessions_.find(event->data<T>().order_id);
+      if (manual_it != manual_order_sessions_.end()) {
+        auto session_it = sessions_.find(manual_it->second);
+        if (session_it != sessions_.end()) {
+          std::lock_guard<std::mutex> slock(session_it->second.send_mutex);
+          session_it->second.send_queue.push_back(msg);
+        }
+        return;
+      }
+    }
+    uint32_t strategy_uid = event->dest();
     for (auto &[id, session] : sessions_) {
       if (session.subscribed_strategies.count(strategy_uid)) {
         std::lock_guard<std::mutex> slock(session.send_mutex);
