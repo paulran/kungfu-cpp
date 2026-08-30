@@ -1,0 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Windows resource file: embeds the application icon into kf_client.exe.
+// Resource ID 1 is the executable's icon shown by Explorer / taskbar / Alt-Tab.
+
+IDI_ICON1 ICON "resources/app.ico"
