@@ -191,6 +191,13 @@ void master::on_active() {
   auto now = time::now_in_nano();
   if (last_check_ + time_unit::NANOSECONDS_PER_SECOND < now) {
     on_interval_check(now);
+    // periodically rebroadcast the master clock base on PUBLIC so long-lived
+    // apprentices re-anchor after suspend / wall-clock steps without restart
+    if (last_public_time_reset_ == 0 ||
+        now - last_public_time_reset_ >= 30 * time_unit::NANOSECONDS_PER_SECOND) {
+      write_time_reset(now, get_writer(location::PUBLIC));
+      last_public_time_reset_ = now;
+    }
     last_check_ = now;
   }
   on_frame();

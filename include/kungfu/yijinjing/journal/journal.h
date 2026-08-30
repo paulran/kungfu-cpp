@@ -72,6 +72,16 @@ public:
   ~reader();
 
   /**
+   * In LIVE mode processes may hold skewed clocks (each anchors its own clock
+   * baseline at startup), so frames stamped with a "future" gen_time by one
+   * process must still be visible to readers immediately instead of being
+   * withheld until the local clock catches up (which can stall startup
+   * handshakes indefinitely). Only REPLAY/BACKTEST keep the time-driven
+   * visibility semantics.
+   */
+  void set_live_mode(bool live) { live_mode_ = live; }
+
+  /**
    * join journal at given data location
    * @param location where the journal locates
    * @param dest_id journal dest id
@@ -101,6 +111,7 @@ public:
 
 private:
   const bool lazy_;
+  bool live_mode_ = false;
   journal *current_;
   std::unordered_map<uint64_t, journal> journals_;
 };

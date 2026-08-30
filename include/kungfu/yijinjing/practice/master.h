@@ -102,6 +102,8 @@ private:
   void write_channels(int64_t trigger_time, const journal::writer_ptr &writer);
 
   void write_bands(int64_t trigger_time, const journal::writer_ptr &writer);
+
+  int64_t last_public_time_reset_ = 0;
 };
 } // namespace kungfu::yijinjing::practice
 #endif // KUNGFU_MASTER_H

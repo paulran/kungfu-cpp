@@ -119,6 +119,17 @@ public:
    */
   static void reset(int64_t system_clock_count, int64_t steady_clock_count);
 
+  /**
+   * Adopt a process-shared clock anchor persisted under the kungfu runtime root,
+   * so every LIVE process on this host computes now_in_nano() on one advancing
+   * axis instead of anchoring its own baseline at startup. This restores the
+   * invariant that frame gen_times are comparable across service restarts (wall
+   * clock steps between launches would otherwise skew generations by seconds to
+   * minutes). The first live process publishes its own anchor; others follow.
+   * Anchors from previous OS boots are rejected via the monotonic counter.
+   */
+  static void adopt_shared_anchor();
+
 private:
   time_point_info base_;
   time();

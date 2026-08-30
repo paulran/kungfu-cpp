@@ -64,7 +64,12 @@ void reader::next() {
 }
 
 void reader::sort() {
-  int64_t min_time = time::now_in_nano();
+  // In live mode do NOT withhold frames whose gen_time lies ahead of the local
+  // clock: processes anchor their own clock baselines independently and WSL/NTP
+  // time steps can leave them skewed by seconds to minutes, which previously
+  // froze cross-process startup handshakes. Time-driven visibility is only
+  // meaningful for replay/backtest (live_mode_ == false).
+  int64_t min_time = live_mode_ ? INT64_MAX : time::now_in_nano();
   for (auto &pair : journals_) {
     auto &journal = pair.second;
     auto &frame = journal.current_frame();

@@ -36,12 +36,23 @@ hero::hero(io_device_ptr io_device)
       io_device_(std::move(io_device)), now_(0) {
 
   os::handle_os_signals(this);
+  // LIVE processes must share one host-wide clock axis before anything stamps a
+  // frame or computes a join/resume timestamp (see time.h docs). begin_time_
+  // above was sampled pre-adoption; re-sample it on the adopted axis now.
+  if (io_device_->get_home()->mode == mode::LIVE) {
+    time::adopt_shared_anchor();
+    begin_time_ = time::now_in_nano();
+  }
   add_location(0, get_io_device()->get_home());
   add_location(0, master_home_location_);
   add_location(0, master_cmd_location_);
   add_location(0, cached_home_location_);
   add_location(0, ledger_home_location_);
   reader_ = io_device_->open_reader_to_subscribe();
+  if (reader_) {
+    // only replay/backtest keep the gen_time-based future-frame visibility cap
+    reader_->set_live_mode(io_device_->get_home()->mode == mode::LIVE);
+  }
 }
 
 hero::~hero() {

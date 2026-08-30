@@ -145,7 +145,9 @@ void apprentice::add_time_interval(int64_t duration, const std::function<void(co
 void apprentice::on_trading_day(const event_ptr &event, int64_t daytime) {}
 
 void apprentice::react() {
-  events_ | is(TimeReset::tag) | first() | $$(reset_time(event->data<TimeReset>()));
+  // repeated TimeResets are applied so long-lived processes re-anchor whenever
+  // the master rebroadcasts its base (e.g. after suspend / wall-clock steps)
+  events_ | is(TimeReset::tag) | $$(reset_time(event->data<TimeReset>()));
   events_ | is(Location::tag) | $$(add_location(event->gen_time(), event->data<Location>()));
   events_ | is(Register::tag) | $$(on_register(event->trigger_time(), event->data<Register>()));
   events_ | is(Deregister::tag) | $$(on_deregister(event));

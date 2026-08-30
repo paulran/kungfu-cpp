@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <ctime>
+#include <filesystem>
+#include <fstream>
 #include <fmt/format.h>
 #include <regex>
 
@@ -142,6 +146,87 @@ void time::reset(int64_t system_clock_count, int64_t steady_clock_count) {
   time_point_info &base = const_cast<time &>(get_instance()).base_;
   base.system_clock_count = system_clock_count;
   base.steady_clock_count = steady_clock_count;
+}
+
+namespace {
+// magic word for the persisted anchor record, purely local convention
+constexpr int64_t KF_CLOCK_ANCHOR_MAGIC = 0x314B434C464E554BLL; // "KUNGFC1K" byte order
+
+// mirrors io/locator.cpp get_runtime_dir(): KF_RUNTIME_DIR or <default_root>/runtime
+std::filesystem::path clock_anchor_dir() {
+  namespace fs = std::filesystem;
+  if (const char *runtime_dir = std::getenv("KF_RUNTIME_DIR"); runtime_dir != nullptr) {
+    return fs::path(runtime_dir);
+  }
+  fs::path default_root;
+  if (const char *kf_home = std::getenv("KF_HOME"); kf_home != nullptr) {
+    default_root = fs::path(kf_home);
+  } else {
+#if defined(_WIN32) || defined(_WINDOWS)
+    const char *base = std::getenv("APPDATA");
+    default_root = base != nullptr ? fs::path(base) : fs::path(".");
+#elif defined(__APPLE__)
+    const char *user_home = std::getenv("HOME");
+    default_root = (user_home != nullptr ? fs::path(user_home) : fs::path(".")) / "Library" / "Application Support";
+#else
+    const char *user_home = std::getenv("HOME");
+    default_root = (user_home != nullptr ? fs::path(user_home) : fs::path(".")) / ".config";
+#endif
+    default_root /= "kungfu";
+    default_root /= "home";
+  }
+  return default_root / "runtime";
+}
+} // namespace
+
+void time::adopt_shared_anchor() {
+  namespace fs = std::filesystem;
+  struct anchor_record {
+    int64_t magic;
+    int64_t system_ns;
+    int64_t steady_ns;
+  };
+
+  const fs::path dir = clock_anchor_dir();
+  std::error_code ec;
+  fs::create_directories(dir, ec);
+  const fs::path file = dir / ".clock_anchor";
+
+  auto &base = const_cast<time &>(get_instance()).base_;
+
+  // try adopt an anchor from an earlier process on this boot
+  {
+    std::ifstream in(file, std::ios::binary);
+    if (in.is_open()) {
+      anchor_record record{};
+      in.read(reinterpret_cast<char *>(&record), sizeof(record));
+      const int64_t current_steady = steady_clock_count();
+      if (record.magic == KF_CLOCK_ANCHOR_MAGIC && record.system_ns > 0 && record.steady_ns > 0 &&
+          record.steady_ns <= current_steady) { // monotonic continuity => same OS boot
+        base.system_clock_count = record.system_ns + (current_steady - record.steady_ns);
+        base.steady_clock_count = current_steady;
+        return;
+      }
+    }
+  }
+
+  // no usable anchor: publish our own baseline atomically (last writer wins is fine,
+  // every publisher records a correct system+steady pair at write time)
+  base.system_clock_count = system_clock_count();
+  base.steady_clock_count = steady_clock_count();
+
+  const anchor_record record{KF_CLOCK_ANCHOR_MAGIC, base.system_clock_count, base.steady_clock_count};
+  const fs::path tmp = file.string() + ".tmp";
+  {
+    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
+    out.write(reinterpret_cast<const char *>(&record), sizeof(record));
+  }
+  fs::rename(tmp, file, ec);
+  if (ec) { // windows-style rename may refuse overwrite; fall back to replace
+    fs::remove(file, ec);
+    ec.clear();
+    fs::rename(tmp, file, ec);
+  }
 }
 
 /**
