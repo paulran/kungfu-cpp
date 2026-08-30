@@ -1,12 +1,15 @@
 build/
-build-linux/
+build-*/
 .vs/
 .vscode/
+.trae/
 *.user
 *.out
 *.so
 *.dll
+*.log
 CMakeSettings.json
 out/
+bin/
 
 home/
