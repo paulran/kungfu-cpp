@@ -1,4 +1,5 @@
 #include <kungfu/wingchun/sim/order_book.h>
+#include <algorithm>
 #include <cmath>
 #include <random>
 #include <spdlog/spdlog.h>
@@ -172,12 +173,17 @@ std::vector<Trade> OrderBook::order(const Order &order) {
   }
 
   auto &levels = (order.side == Side::Buy) ? bids_ : offers_;
+  // 只做"合并累计上限"封顶（不再钳制单笔量）。
+  // 真正阻断数量爆炸的位置是 gen_orders：巨量扫单只带"刚好能成交"的量，
+  // 成交后剩余量应为 0，不应该作为新挂单以"聚合扫单量"整笔插入。
+  // 这里保留原始 qty 可以使 pad_book 的小挂单（1~10）真实呈现，不会被硬抬到
+  // MAX_QTY 造成"全档都是同一个值"的刻板现象。
   OrderBookLevel new_level{round_price(order.price), order.qty, 1};
 
   auto [it, inserted] = levels.insert(new_level);
   if (!inserted) {
     OrderBookLevel merged = *it;
-    merged.qty += order.qty;
+    merged.qty = std::min<int64_t>(merged.qty + order.qty, MAX_LEVEL_QTY);
     merged.order_count += 1;
     levels.erase(it);
     levels.insert(merged);
@@ -227,21 +233,20 @@ std::vector<Order> OrderBook::pad_book(const OrderBook &book, int depth, double 
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_int_distribution<> dis(1, 10);
-  std::uniform_int_distribution<> offset_dis(1, 3);
 
   double sign = (side == Side::Buy) ? -1.0 : 1.0;
   int num = MAX_DEPTH - depth;
   double best = price;
-  int offset = 1;
 
+  // 每档固定间隔 2 个 MIN_TICK，确保补位价位互不重合；此前随机步进
+  // 常撞同一价位合并成一档，叠加扫单后盘口深度会塌缩到个位数档。
   for (int i = 0; i < num; ++i) {
     orders.push_back({
         book.security_,
         side,
-        round_price(best + sign * offset * MIN_TICK),
+        round_price(best + sign * (1 + 2 * i) * MIN_TICK),
         dis(gen),
     });
-    offset += offset_dis(gen);
   }
 
   return orders;
@@ -279,11 +284,18 @@ std::vector<std::pair<std::vector<Order>, double>> OrderBook::gen_orders(const M
 
     if (direction < 0) {
       int64_t qty = aggregate_bid_qty(sell_price);
-      orders.push_back({security_, Side::Sell, round_price(sell_price), qty + 1});
+      // 关键：攻击性扫单只做"刚好可成交量"。此前"aggregate + 1"里的 "+1"表示成交后
+      // 剩余 1 手作为反方挂单（合理），但当聚合量本身很大（几千~几十万）时，成交
+      // 吃掉的那部分其实根本没在 match() 里发生（因为 mid+1tick ≥ best_bid+1tick
+      // 不一定交叉），整笔聚合量反而直接成为我方新挂单，造成数量爆炸。
+      // 钳制后：扫单最多只会吃掉 MAX_QTY 量级的对手方盘口，剩余挂单量也可控。
+      int64_t aggressor_qty = std::min<int64_t>(qty, MAX_QTY) + 1;
+      orders.push_back({security_, Side::Sell, round_price(sell_price), aggressor_qty});
       orders.push_back({security_, Side::Buy, round_price(buy_price), 1});
     } else {
       int64_t qty = aggregate_offer_qty(buy_price);
-      orders.push_back({security_, Side::Buy, round_price(buy_price), qty + 1});
+      int64_t aggressor_qty = std::min<int64_t>(qty, MAX_QTY) + 1;
+      orders.push_back({security_, Side::Buy, round_price(buy_price), aggressor_qty});
       orders.push_back({security_, Side::Sell, round_price(sell_price), 1});
     }
 

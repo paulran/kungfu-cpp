@@ -11,7 +11,9 @@ using namespace kungfu::longfist::enums;
 MarketDataSim::MarketDataSim(broker::MarketDataVendor &vendor) : MarketData(vendor) {
   config_.base = 200.0;
   config_.bound = 1000;
-  config_.samples = 1000;
+  // 每个 500ms 周期仅需少量内部演化步；原值 1000 会一个周期内生成数千笔
+  // 订单（含全边聚合的巨量扫单），放大数量膨胀与深度抖动。
+  config_.samples = 5;
   config_.variation = 4;
   config_.randseed = 6;
 }

@@ -40,7 +40,10 @@ class OrderBook {
 public:
   static constexpr double MIN_TICK = 0.01;
   static constexpr int MAX_DEPTH = 20;
+  // 每个档位允许的累计挂量上限（对应"不放大"的股/张数，非期货再 ×100 后仍在几十万量级）。
+  // 选 MAX_QTY * 20 而不是刚好等于 MAX_QTY，避免档量永远"整齐地"落在同一条天花板线上。
   static constexpr int MAX_QTY = 100;
+  static constexpr int64_t MAX_LEVEL_QTY = 2000;
   static constexpr int DECIMALS = 2;
 
   explicit OrderBook(const std::string &security);
