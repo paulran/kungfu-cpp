@@ -196,10 +196,10 @@ bool read_frame(socket_t fd, std::string &out, const std::atomic<bool> &stop) {
 struct ClientSession {
   socket_t fd = INVALID_SOCKET_FD;
   uint32_t id = 0;
-  /// instrument hash → true, for filtering Quote pushes
-  std::unordered_set<uint32_t> subscribed_keys;
-  /// md_uid → set of keys, for unsubscribing from MD on disconnect
-  std::unordered_map<uint32_t, std::unordered_set<uint32_t>> md_subscribed_keys;
+  /// instrument hash → InstrumentKey, for filtering Quote pushes
+  std::unordered_map<uint32_t, InstrumentKey> subscribed_keys;
+  /// md_uid → (instrument hash → InstrumentKey), for unsubscribing from MD on disconnect
+  std::unordered_map<uint32_t, std::unordered_map<uint32_t, InstrumentKey>> md_subscribed_keys;
   /// strategy_uid → true, for filtering Order/Trade pushes
   std::unordered_set<uint32_t> subscribed_strategies;
   /// Send queue for outbound messages (main thread writes, per-client send thread drains)
@@ -447,7 +447,7 @@ private:
 
   void cleanup_session(uint32_t session_id) {
     socket_t fd = INVALID_SOCKET_FD;
-    std::unordered_map<uint32_t, std::unordered_set<uint32_t>> md_subscribed_keys;
+    std::unordered_map<uint32_t, std::unordered_map<uint32_t, InstrumentKey>> md_subscribed_keys;
     std::unordered_set<uint32_t> subscribed_strategies;
     {
       std::lock_guard<std::mutex> lock(sessions_mutex_);
@@ -477,23 +477,33 @@ private:
       SPDLOG_INFO("session {} cleanup: unsubscribing from {} MD sources", session_id,
                   md_subscribed_keys.size());
       for (auto &[md_uid, keys] : md_subscribed_keys) {
-        if (has_writer(md_uid)) {
-          bool others_still_subscribed = false;
+        if (!has_writer(md_uid)) continue;
+        auto writer = get_writer(md_uid);
+        size_t unsubscribed = 0;
+        for (const auto &[key_hash, instrument_key] : keys) {
+          bool still_needed_by_others = false;
           {
             std::lock_guard<std::mutex> lock(sessions_mutex_);
             for (auto &[_, other] : sessions_) {
-              if (other.md_subscribed_keys.count(md_uid)) {
-                others_still_subscribed = true;
+              if (other.subscribed_keys.count(key_hash)) {
+                still_needed_by_others = true;
                 break;
               }
             }
           }
-          if (!others_still_subscribed) {
-            InstrumentKey empty_key = {};
-            empty_key.key = 0;
-            get_writer(md_uid)->write(now(), empty_key);
-            SPDLOG_INFO("unsubscribed from MD {:08x} (no other clients need it)", md_uid);
-          }
+          if (still_needed_by_others) continue;
+          InstrumentUnsubscribe unsub = {};
+          unsub.key = instrument_key.key;
+          strcpy(unsub.instrument_id, instrument_key.instrument_id);
+          strcpy(unsub.exchange_id, instrument_key.exchange_id);
+          unsub.instrument_type = instrument_key.instrument_type;
+          writer->write(now(), unsub);
+          broker_client_.unsubscribe(instrument_key.exchange_id.to_string(), instrument_key.instrument_id.to_string());
+          ++unsubscribed;
+        }
+        if (unsubscribed > 0) {
+          SPDLOG_INFO("unsubscribed {} instruments from MD {:08x} (no other clients need them)", unsubscribed,
+                      md_uid);
         }
       }
     }
@@ -706,6 +716,12 @@ private:
 
     uint32_t key = hash_instrument(exchange_id.c_str(), instrument_id.c_str());
 
+    InstrumentKey instrument_key = {};
+    instrument_key.key = key;
+    strcpy(instrument_key.instrument_id, instrument_id.c_str());
+    strcpy(instrument_key.exchange_id, exchange_id.c_str());
+    instrument_key.instrument_type = get_instrument_type(exchange_id, instrument_id);
+
     bool need_send_to_md = true;
     {
       std::lock_guard<std::mutex> lock(sessions_mutex_);
@@ -717,19 +733,21 @@ private:
       }
     }
     if (need_send_to_md) {
-      InstrumentKey instrument_key = {};
-      instrument_key.key = key;
-      strcpy(instrument_key.instrument_id, instrument_id.c_str());
-      strcpy(instrument_key.exchange_id, exchange_id.c_str());
-      instrument_key.instrument_type = get_instrument_type(exchange_id, instrument_id);
       get_writer(md->uid)->write(now(), instrument_key);
     }
+
+    // Register the subscription with the broker client so that renew() can
+    // replay it after this MD restarts. Without this, an MD restart loses the
+    // subscription forever: the restarted MD never sees old InstrumentKey
+    // frames, and need_send_to_md below stays false because the session is
+    // still marked as subscribed.
+    broker_client_.subscribe(md, exchange_id, instrument_id);
 
     {
       std::lock_guard<std::mutex> lock(sessions_mutex_);
       auto &session = sessions_[session_id];
-      session.subscribed_keys.insert(key);
-      session.md_subscribed_keys[md->uid].insert(key);
+      session.subscribed_keys.insert_or_assign(key, instrument_key);
+      session.md_subscribed_keys[md->uid].insert_or_assign(key, instrument_key);
     }
 
     SPDLOG_INFO("request_market_data {}@{} from MD {} (session {})", exchange_id, instrument_id, md->uname, session_id);
@@ -767,9 +785,17 @@ private:
     }
 
     if (!still_needed_by_others && has_writer(md->uid)) {
-      InstrumentKey empty_key = {};
-      empty_key.key = 0;
-      get_writer(md->uid)->write(now(), empty_key);
+      // Send a real unsubscribe command; writing an empty/invalid InstrumentKey
+      // would be misread by the MD as a subscription for an empty instrument.
+      InstrumentUnsubscribe unsub = {};
+      unsub.key = key;
+      strcpy(unsub.instrument_id, instrument_id.c_str());
+      strcpy(unsub.exchange_id, exchange_id.c_str());
+      unsub.instrument_type = get_instrument_type(exchange_id, instrument_id);
+      get_writer(md->uid)->write(now(), unsub);
+      // Drop from the broker client's replay set so renew() after an MD
+      // restart does not resurrect the canceled subscription.
+      broker_client_.unsubscribe(md, exchange_id, instrument_id);
     }
 
     SPDLOG_INFO("cancel_market_data {}@{} from MD {} (session {})", exchange_id, instrument_id, md->uname, session_id);
@@ -827,8 +853,9 @@ private:
     std::lock_guard<std::mutex> lock(sessions_mutex_);
     auto it = sessions_.find(session_id);
     if (it != sessions_.end()) {
-      for (uint32_t key : it->second.subscribed_keys) {
-        arr.push_back(fmt::format("{:08x}", key));
+      for (const auto &[key, instrument_key] : it->second.subscribed_keys) {
+        arr.push_back(fmt::format("{:08x} {}@{}", key, instrument_key.exchange_id.to_string(),
+                                  instrument_key.instrument_id.to_string()));
       }
     }
     return arr;

@@ -6,6 +6,9 @@
 
 #include <kungfu/wingchun/broker/marketdata.h>
 
+#include <algorithm>
+#include <cstring>
+
 using namespace kungfu::rx;
 using namespace kungfu::longfist::types;
 using namespace kungfu::longfist::enums;
@@ -29,6 +32,7 @@ void MarketDataVendor::on_start() {
   BrokerVendor::on_start();
   events_ | is(CustomSubscribe::tag) | $$(service_->subscribe_custom(event->data<CustomSubscribe>()));
   events_ | is(InstrumentKey::tag) | $$(service_->add_instrument_key(event->data<InstrumentKey>()));
+  events_ | is(InstrumentUnsubscribe::tag) | $$(service_->unsubscribe_key(event->data<InstrumentUnsubscribe>()));
   events_ | is_custom() | $$(service_->on_custom_event(event));
   service_->on_start();
 
@@ -61,5 +65,20 @@ void MarketData::try_subscribe() {
 }
 
 void MarketData::add_instrument_key(const InstrumentKey &key) { instruments_to_subscribe_.push_back(key); }
+
+bool MarketData::unsubscribe_key(const InstrumentUnsubscribe &unsub) {
+  InstrumentKey key = {};
+  key.key = unsub.key;
+  strcpy(key.instrument_id, unsub.instrument_id);
+  strcpy(key.exchange_id, unsub.exchange_id);
+  key.instrument_type = unsub.instrument_type;
+  // Drop it from the pending list so try_subscribe() will not subscribe it
+  // afterwards (subscribe requests are deferred up to 1 second).
+  instruments_to_subscribe_.erase(
+      std::remove_if(instruments_to_subscribe_.begin(), instruments_to_subscribe_.end(),
+                     [&key](const InstrumentKey &pending) { return pending.key == key.key; }),
+      instruments_to_subscribe_.end());
+  return unsubscribe({key});
+}
 
 } // namespace kungfu::wingchun::broker

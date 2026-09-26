@@ -13,6 +13,8 @@
 #include <kungfu/yijinjing/log.h>
 #include <kungfu/yijinjing/practice/apprentice.h>
 
+#include <unordered_set>
+
 namespace kungfu::wingchun::broker {
 /**
  * Policy interface to decide the time point to resume when connecting to a broker.
@@ -101,6 +103,13 @@ public:
   virtual void subscribe(const yijinjing::data::location_ptr &md_location, const std::string &exchange_id,
                          const std::string &instrument_id);
 
+  /// Drop the instrument from the replay set so renew() no longer resends it
+  /// to the MD after a restart.
+  virtual void unsubscribe(const std::string &exchange_id, const std::string &instrument_id);
+
+  virtual void unsubscribe(const yijinjing::data::location_ptr &md_location, const std::string &exchange_id,
+                           const std::string &instrument_id);
+
   virtual void connect(const event_ptr &event, const longfist::types::Register &register_data);
 
   virtual void connect(const event_ptr &event, const longfist::types::Band &band);
@@ -145,6 +154,9 @@ private:
   InstrumentSourceMap instrument_md_locations_ = {};
   yijinjing::data::location_map ready_md_locations_ = {};
   yijinjing::data::location_map ready_td_locations_ = {};
+  /// Locations whose journal channels have been established, to keep
+  /// connect() idempotent across Register events and ensure_connect() calls.
+  std::unordered_set<uint32_t> connected_locations_ = {};
 
   void update_broker_state(const event_ptr &event, const longfist::types::BrokerStateUpdate &state);
 

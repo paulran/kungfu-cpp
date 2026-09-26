@@ -19,6 +19,10 @@ using namespace kungfu::yijinjing::data;
 using namespace kungfu::yijinjing::journal;
 
 namespace kungfu::wingchun::broker {
+namespace {
+const std::string empty_config_string;
+} // namespace
+
 BrokerVendor::BrokerVendor(location_ptr location, bool low_latency) : apprentice(std::move(location), low_latency) {}
 
 void BrokerVendor::on_start() {
@@ -50,14 +54,23 @@ BrokerState BrokerService::get_state() { return state_; }
 
 const std::string &BrokerService::get_config() const {
   auto &config_map = get_state_bank()[boost::hana::type_c<Config>];
-  auto &config_obj = config_map.at(get_home_uid());
-  return config_obj.data.value;
+  auto it = config_map.find(get_home_uid());
+  if (it == config_map.end()) {
+    SPDLOG_ERROR("Config not found for {} (uid {:08x}); ensure kf_cached is running and setup_simnow_config.py has written the row. Returning empty.",
+                 get_home()->uname, get_home_uid());
+    return empty_config_string;
+  }
+  return it->second.data.value;
 }
 
 [[maybe_unused]] const std::string &BrokerService::get_risk_setting() const {
   auto &risk_setting_map = get_state_bank()[boost::hana::type_c<RiskSetting>];
-  auto &risk_setting_obj = risk_setting_map.at(get_home_uid());
-  return risk_setting_obj.data.value;
+  auto it = risk_setting_map.find(get_home_uid());
+  if (it == risk_setting_map.end()) {
+    SPDLOG_WARN("RiskSetting not found for {} (uid {:08x}); returning empty.", get_home()->uname, get_home_uid());
+    return empty_config_string;
+  }
+  return it->second.data.value;
 }
 
 std::string BrokerService::get_runtime_folder() { return vendor_.get_locator()->layout_dir(get_home(), layout::LOG); }

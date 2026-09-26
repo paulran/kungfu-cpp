@@ -50,6 +50,11 @@ public:
 
   virtual bool unsubscribe(const std::vector<longfist::types::InstrumentKey> &instrument_keys) = 0;
 
+  /// Handle an InstrumentUnsubscribe command frame: converts it to an
+  /// InstrumentKey, drops it from the pending subscribe list and forwards to
+  /// unsubscribe().
+  bool unsubscribe_key(const longfist::types::InstrumentUnsubscribe &unsub);
+
   virtual bool on_custom_event(const event_ptr &event) { return true; }
 
 protected:

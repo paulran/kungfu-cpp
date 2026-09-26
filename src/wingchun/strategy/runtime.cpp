@@ -64,12 +64,17 @@ void RuntimeContext::add_account(const std::string &source, const std::string &a
   account_location_ids_.emplace(hashed_account, account_location->uid);
 
   broker_client_.enroll_account(account_location);
-  //  ensure_connect();
+  ensure_connect();
 }
 
 void RuntimeContext::subscribe(const std::string &source, const std::vector<std::string> &instrument_ids,
                                const std::string &exchange_ids) {
   auto md_location = find_md_location(source);
+  if (not app_.has_location(md_location->uid)) {
+    SPDLOG_ERROR(fmt::format("md {}/{} not registered, skip subscribing {} instruments (start kf_md first)", source,
+                             md_location->name, instrument_ids.size()));
+    return;
+  }
   for (const auto &instrument_id : instrument_ids) {
     broker_client_.subscribe(md_location, exchange_ids, instrument_id);
   }
@@ -80,7 +85,14 @@ void RuntimeContext::subscribe(const std::string &source, const std::vector<std:
 
 void RuntimeContext::subscribe_all(const std::string &source, uint8_t market_type, uint64_t instrument_type,
                                    uint64_t data_type) {
-  broker_client_.subscribe_all(find_md_location(source), market_type, instrument_type, data_type);
+  auto md_location = find_md_location(source);
+  if (not app_.has_location(md_location->uid)) {
+    SPDLOG_ERROR(fmt::format("md {}/{} not registered, skip subscribe_all (start kf_md first)", source,
+                             md_location->name));
+    return;
+  }
+  broker_client_.subscribe_all(md_location, market_type, instrument_type, data_type);
+  md_locations_.emplace(md_location->uid, md_location);
   ensure_connect();
   send_instrument_keys();
 }
@@ -301,16 +313,35 @@ uint32_t RuntimeContext::get_td_location_uid(const std::string &source, const st
   return td_locations_.at(hashed_account)->uid;
 }
 
-const location_ptr &RuntimeContext::find_md_location(const std::string &source) {
-  if (market_data_.find(source) == market_data_.end()) {
-    auto home = app_.get_home();
-    auto md_location = location::make_shared(mode::LIVE, category::MD, source, source, home->locator);
-    if (not app_.has_location(md_location->uid)) {
-      SPDLOG_ERROR(fmt::format("invalid md {}", source));
+yijinjing::data::location_ptr RuntimeContext::find_md_location(const std::string &source) {
+  if (market_data_.find(source) != market_data_.end()) {
+    return market_data_.at(source);
+  }
+  location_ptr md_location;
+  // Prefer a registered MD process of this group (e.g. md/ctp/simnow/live)
+  // over assuming the MD name equals the source name (md/ctp/ctp/live).
+  for (const auto &[uid, loc] : app_.get_locations()) {
+    if (loc->category == category::MD and loc->group == source) {
+      if (loc->name == source) {
+        md_location = loc;
+        break;
+      }
+      if (md_location == nullptr) {
+        md_location = loc;
+      }
     }
+  }
+  if (md_location == nullptr) {
+    auto home = app_.get_io_device()->get_home();
+    md_location = location::make_shared(mode::LIVE, category::MD, source, source, home->locator);
+  }
+  if (not app_.has_location(md_location->uid)) {
+    SPDLOG_ERROR(fmt::format("invalid md {} (md/{}/{}/live not registered, is kf_md running?)", source, source,
+                             md_location->name));
+  } else {
     market_data_.emplace(source, md_location);
   }
-  return market_data_.at(source);
+  return md_location;
 }
 
 void RuntimeContext::req_history_order(const std::string &source, const std::string &account, uint32_t query_num) {
@@ -354,10 +385,8 @@ yijinjing::journal::writer_ptr RuntimeContext::get_writer(const std::string &sou
 }
 
 void RuntimeContext::ensure_connect() {
-  if (not started_) {
-    return;
-  }
-
+  // Called from add_account/subscribe during pre_start, before started_ is
+  // set: connecting here is the point of this call. connect() is idempotent.
   const event_ptr &e = app_.get_reader()->current_frame();
   for (const auto &pair : app_.get_registry()) {
     SPDLOG_DEBUG("Register: {}", pair.second.to_string());

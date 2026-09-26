@@ -242,7 +242,7 @@ protected:
 
   uint32_t get_td_location_uid(const std::string &source, const std::string &account) const;
 
-  const yijinjing::data::location_ptr &find_md_location(const std::string &source);
+  [[nodiscard]] yijinjing::data::location_ptr find_md_location(const std::string &source);
 
   void ensure_connect();
 

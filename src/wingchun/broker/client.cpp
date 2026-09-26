@@ -102,6 +102,16 @@ void Client::subscribe(const location_ptr &md_location, const std::string &excha
   instrument_md_locations_.emplace(hash_instrument(exchange_id.c_str(), instrument_id.c_str()), md_location);
 }
 
+void Client::unsubscribe(const std::string &exchange_id, const std::string &instrument_id) {
+  instrument_keys_.erase(hash_instrument(exchange_id.c_str(), instrument_id.c_str()));
+}
+
+void Client::unsubscribe(const location_ptr &md_location, const std::string &exchange_id,
+                         const std::string &instrument_id) {
+  unsubscribe(exchange_id, instrument_id);
+  instrument_md_locations_.erase(hash_instrument(exchange_id.c_str(), instrument_id.c_str()));
+}
+
 void Client::renew(int64_t trigger_time, const location_ptr &md_location) {
   auto writer = app_.get_writer(md_location->uid);
   for (const auto &pair : instrument_keys_) {
@@ -155,32 +165,40 @@ void Client::on_start(const rx::connectable_observable<event_ptr> &events) {
 
 void Client::connect(const event_ptr &event, const Register &register_data) {
   auto app_uid = register_data.location_uid;
+  if (connected_locations_.find(app_uid) != connected_locations_.end()) {
+    return; // channels already established, keep connect idempotent
+  }
   auto app_location = app_.get_location(app_uid);
   auto resume_time_point = get_resume_policy().get_connect_time(app_, register_data);
+  bool connected = false;
   if (app_location->category == category::MD and should_connect_md(app_location)) {
     app_.request_write_to(app_.now(), app_uid);
     app_.request_read_from_public(app_.now(), app_uid, resume_time_point);
     SPDLOG_INFO("resume {} connection from {}", app_.get_location_uname(app_uid), time::strftime(resume_time_point));
-  }
-  if (app_location->category == category::TD and should_connect_td(app_location)) {
+    connected = true;
+  } else if (app_location->category == category::TD and should_connect_td(app_location)) {
     app_.request_write_to(app_.now(), app_uid);
     app_.request_read_from(app_.now(), app_uid, resume_time_point);
     app_.request_read_from_public(app_.now(), app_uid, resume_time_point);
     app_.request_read_from_sync(app_.now(), app_uid, resume_time_point);
     SPDLOG_INFO("resume {} connection from {}", app_.get_location_uname(app_uid), time::strftime(resume_time_point));
-  }
-  if (app_location->category == category::STRATEGY and should_connect_strategy(app_location)) {
+    connected = true;
+  } else if (app_location->category == category::STRATEGY and should_connect_strategy(app_location)) {
     app_.request_write_to(app_.now(), app_location->uid);
     app_.request_read_from(app_.now(), app_location->uid, resume_time_point);
     app_.request_read_from_public(app_.now(), app_location->uid, resume_time_point);
     SPDLOG_INFO("resume {} connection from {}", app_.get_location_uname(app_uid), time::strftime(resume_time_point));
-  }
-  if (app_location->category == category::SYSTEM and should_connect_system(app_location)) {
+    connected = true;
+  } else if (app_location->category == category::SYSTEM and should_connect_system(app_location)) {
     app_.request_write_to(app_.now(), app_uid);
     app_.request_read_from(app_.now(), app_uid, resume_time_point);
     app_.request_read_from_public(app_.now(), app_uid, resume_time_point);
     app_.request_read_from_sync(app_.now(), app_uid, resume_time_point);
     SPDLOG_INFO("resume {} connection from {}", app_.get_location_uname(app_uid), time::strftime(resume_time_point));
+    connected = true;
+  }
+  if (connected) {
+    connected_locations_.emplace(app_uid);
   }
 }
 
@@ -228,6 +246,8 @@ void Client::update_broker_state(const event_ptr &, const longfist::types::Dereg
   broker_states_.emplace(location_uid, BrokerState::DisConnected);
   ready_md_locations_.erase(location_uid);
   ready_td_locations_.erase(location_uid);
+  // Allow reconnecting when the broker registers again after a restart.
+  connected_locations_.erase(location_uid);
 }
 
 AutoClient::AutoClient(apprentice &app) : Client(app) {}

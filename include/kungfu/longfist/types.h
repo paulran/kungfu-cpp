@@ -326,6 +326,16 @@ KF_DEFINE_PACK_TYPE(                                         //
     (enums::InstrumentType, instrument_type)                 // 合约类型
 );
 
+// MD 取消订阅指令：字段与 InstrumentKey 镜像，供 api 写入 MD journal，
+// 由 MarketDataVendor 派发给 MarketData::unsubscribe 执行真正的退订。
+KF_DEFINE_PACK_TYPE(                                                 //
+    InstrumentUnsubscribe, 214, PK(key), PERPETUAL(),                //
+    (uint32_t, key),                                                 //
+    (kungfu::array<char, INSTRUMENT_ID_LEN>, instrument_id), // 合约ID
+    (kungfu::array<char, EXCHANGE_ID_LEN>, exchange_id),     // 交易所ID
+    (enums::InstrumentType, instrument_type)                 // 合约类型
+);
+
 KF_DEFINE_DATA_TYPE(                                               //
     CustomSubscribe, 303, PK(update_time), TIMESTAMP(update_time), //
     (int64_t, update_time),                                        //
