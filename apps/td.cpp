@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
     std::string mode_str = "live";
     std::string group = "sim";
     std::string name = "sim";
-    std::string source = "sim";
+    std::string source; // empty = follow --group (same rule as kf_md)
     bool low_latency = false;
 
     for (int i = 1; i < argc; ++i) {
@@ -62,6 +62,12 @@ int main(int argc, char **argv) {
         } else if (arg == "--low-latency") {
             low_latency = true;
         }
+    }
+
+    // Load kf_<group> by default so "kf_td --group ctp" picks libkf_ctp.so
+    // without an explicit --source; --source still overrides the library.
+    if (source.empty()) {
+        source = group;
     }
 
     mode m = mode::LIVE;

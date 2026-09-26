@@ -1,12 +1,11 @@
 build/
 build-*/
+__pycache__/
 .vs/
 .vscode/
 .trae/
 *.user
 *.out
-*.so
-*.dll
 *.log
 CMakeSettings.json
 out/

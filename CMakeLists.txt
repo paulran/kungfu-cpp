@@ -71,6 +71,7 @@ add_subdirectory(apps)
 
 # === Broker extensions (built as shared libraries, loaded at runtime by apps) ===
 add_subdirectory(brokers/sim)
+add_subdirectory(brokers/ctp)
 
 # === Tests ===
 if(BUILD_TESTS)

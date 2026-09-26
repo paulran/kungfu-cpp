@@ -35,18 +35,34 @@ int main(int argc, char **argv) {
     std::string arguments = "";
     bool low_latency = false;
 
+    // Split "--key=value" into two tokens so "--args={...}" (which the shell
+    // delivers as a single argument) is parsed like "--args {...}".
+    std::vector<std::string> tokens;
     for (int i = 1; i < argc; ++i) {
-        std::string arg = argv[i];
-        if (arg == "--mode" && i + 1 < argc) {
-            mode_str = argv[++i];
-        } else if (arg == "--group" && i + 1 < argc) {
-            group = argv[++i];
-        } else if (arg == "--name" && i + 1 < argc) {
-            name = argv[++i];
-        } else if (arg == "--strategy" && i + 1 < argc) {
-            strategy_type = argv[++i];
-        } else if (arg == "--args" && i + 1 < argc) {
-            arguments = argv[++i];
+        std::string token = argv[i];
+        if (token.rfind("--", 0) == 0) {
+            auto eq = token.find('=');
+            if (eq != std::string::npos) {
+                tokens.push_back(token.substr(0, eq));
+                tokens.push_back(token.substr(eq + 1));
+                continue;
+            }
+        }
+        tokens.push_back(token);
+    }
+
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        const std::string &arg = tokens[i];
+        if (arg == "--mode" && i + 1 < tokens.size()) {
+            mode_str = tokens[++i];
+        } else if (arg == "--group" && i + 1 < tokens.size()) {
+            group = tokens[++i];
+        } else if (arg == "--name" && i + 1 < tokens.size()) {
+            name = tokens[++i];
+        } else if (arg == "--strategy" && i + 1 < tokens.size()) {
+            strategy_type = tokens[++i];
+        } else if (arg == "--args" && i + 1 < tokens.size()) {
+            arguments = tokens[++i];
         } else if (arg == "--low-latency") {
             low_latency = true;
         }

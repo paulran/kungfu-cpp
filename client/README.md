@@ -50,7 +50,7 @@ cmake --build kungfu-cpp/client/build --config Release --target kf_client
 先启动 kungfu 服务（`kf_master`、`kf_ledger`、`kf_api` 及 MD/TD 进程），再运行客户端：
 
 ```powershell
-d:\workspace\repos\rewrite-kungfu\kungfu-cpp\client\build\Release\kf_client.exe
+.\build\Release\kf_client.exe
 ```
 
 在顶部连接条输入 kf_api 的地址（默认 `127.0.0.1:7788`），点击「连接」。

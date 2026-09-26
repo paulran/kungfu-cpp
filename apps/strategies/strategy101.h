@@ -5,6 +5,7 @@
 #include <kungfu/wingchun/strategy/runtime.h>
 #include <kungfu/wingchun/strategy/strategy.h>
 #include <kungfu/yijinjing/journal/assemble.h>
+#include <nlohmann/json.hpp>
 
 using namespace kungfu;
 using namespace kungfu::longfist::enums;
@@ -16,15 +17,51 @@ int i = 0;
 
 
 class KungfuStrategy101 : public Strategy {
+protected:
+  std::string source_;
+  std::string account_;
+  std::vector<std::string> instrument_ids_;
+  std::string exchange_ids_;
+  int64_t volume_;
+
 public:
-  KungfuStrategy101() = default;
+  KungfuStrategy101() {
+    SPDLOG_INFO("KungfuStrategy101 constructor");
+   }
+
   ~KungfuStrategy101() = default;
 
   void pre_start(Context_ptr &context) override {
     SPDLOG_INFO("preparing strategy");
-    SPDLOG_INFO("arguments: {}", context->arguments());
-    context->add_account("sim", "sim");
-    context->subscribe("sim", {"600000"}, {"SSE"});
+    std::string arguments = context->arguments();
+    SPDLOG_INFO("arguments: {}", arguments);
+    if (arguments.empty()) {
+      SPDLOG_INFO("arguments is empty, using default values");
+      arguments = R"({"source": "sim", "account": "sim", "instrument_ids": ["600000"], "exchange_ids": "SSE", "volume": 100})";
+    }
+    // Parse arguments as JSON
+    // Example:
+    // '{"source":"sim","account":"sim","instrument_ids":["600000"],"exchange_ids":"SSE","volume":100}'
+    // '{"source":"ctp","account":"simnow","instrument_ids":["au2610"],"exchange_ids":"SHFE","volume":1}'
+    try {
+      auto arguments_j = nlohmann::json::parse(arguments);
+      source_ = arguments_j["source"].get<std::string>();
+      account_ = arguments_j["account"].get<std::string>();
+      instrument_ids_ = arguments_j["instrument_ids"].get<std::vector<std::string>>();
+      exchange_ids_ = arguments_j["exchange_ids"].get<std::string>();
+      volume_ = arguments_j["volume"].get<int64_t>();
+      SPDLOG_INFO("source: {}", source_);
+      SPDLOG_INFO("account: {}", account_);
+      SPDLOG_INFO("instrument_ids: {}, first: {}", instrument_ids_.size(), instrument_ids_[0]);
+      SPDLOG_INFO("exchange_ids: {}", exchange_ids_);
+      SPDLOG_INFO("volume: {}", volume_);
+    } catch (const std::exception &e) {
+      SPDLOG_ERROR("error parsing arguments: {}", e.what());
+      throw e;
+    }
+
+    context->add_account(source_, account_);
+    context->subscribe(source_, instrument_ids_, exchange_ids_);
     // context->subscribe_operator("bar", "my-bar");
     SPDLOG_INFO("is_bypass_accounting: {}", context->is_bypass_accounting());
     //    context->bypass_accounting();
@@ -50,21 +87,32 @@ public:
     auto l_ptr = location::make_shared(mode::LIVE, category::MD, "sim", "sim", std::make_shared<locator>());
     kungfu::yijinjing::journal::assemble asb(l_ptr, location::PUBLIC, AssembleMode::All);
     auto headers = asb.read_headers(Location{});
-    for (const auto &head : headers) {
-      SPDLOG_INFO("head: {}", head.to_string());
+    SPDLOG_INFO("headers.length: {}", headers.size());
+    if (headers.size() > 0) {
+      SPDLOG_INFO("last head: {}", headers.back().to_string());
     }
+    // for (const auto &head : headers) {
+    //   SPDLOG_INFO("head: {}", head.to_string());
+    // }
     kungfu::yijinjing::journal::assemble asb2(l_ptr, location::PUBLIC, AssembleMode::All);
     auto locations = asb2.read_bytes<Location>();
     SPDLOG_INFO("locations.length: {}", locations.size());
-    for (const auto &loc : locations) {
-      SPDLOG_INFO("locaton byte: {}", std::string(loc.second.begin(), loc.second.end()));
+    if (locations.size() > 0) {
+      auto &last_bytes = locations.back().second;
+      SPDLOG_INFO("last locaton byte: {}", std::string(last_bytes.begin(), last_bytes.end()));
     }
+    // for (const auto &loc : locations) {
+    //   SPDLOG_INFO("locaton byte: {}", std::string(loc.second.begin(), loc.second.end()));
+    // }
     kungfu::yijinjing::journal::assemble asb3(l_ptr, location::PUBLIC, AssembleMode::All);
     auto l3 = asb3.read_all<Location>();
     SPDLOG_INFO("locations.length: {}", l3.size());
-    for (const auto &loc : l3) {
-      SPDLOG_INFO("l3 : {}", loc.to_string());
+    if (l3.size() > 0) {
+      SPDLOG_INFO("last l3 loc: {}", l3.back().to_string());
     }
+    // for (const auto &loc : l3) {
+    //   SPDLOG_INFO("l3 : {}", loc.to_string());
+    // }
 
     //    auto fn = [&](int i) {
     //      int count = 0;
@@ -106,7 +154,7 @@ public:
     //   }
     // }
     if (i % 10 == 0) {
-      context->insert_order("600000", "SSE", "sim", "sim", quote.last_price, 100, PriceType::Limit, Side::Buy, Offset::Open);
+      context->insert_order(instrument_ids_[0], exchange_ids_, source_, account_, quote.last_price, volume_, PriceType::Limit, Side::Buy, Offset::Open);
     }
   }
 
